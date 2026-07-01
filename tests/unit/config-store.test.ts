@@ -135,6 +135,19 @@ describe("resolveAgyOAuthToken", () => {
     expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
   });
 
+  it("extracts nested token.access_token from antigravity-oauth-token JSON", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: { access_token: "ya29.nested_token", token_type: "Bearer" },
+          auth_method: "oauth",
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.nested_token");
+  });
+
   it("returns undefined for empty string token", () => {
     const readFile = () => "   ";
     const fileExists = () => true;

@@ -113,8 +113,14 @@ export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | und
 
     // JSON object with access_token field (oauth_creds.json)
     if (isRecord(parsed)) {
-      const token = stringValue(parsed.access_token);
+      let token = stringValue(parsed.access_token);
       if (token) return token;
+
+      // agy antigravity-oauth-token format: {token: {access_token: "..."}}
+      if (isRecord(parsed.token)) {
+        token = stringValue(parsed.token.access_token);
+        if (token) return token;
+      }
 
       // Also check pi auth.json format: {agy: {access: "..."}}
       const agyField = parsed.agy;
