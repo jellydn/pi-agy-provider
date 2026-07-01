@@ -94,6 +94,27 @@ export function walkAuthPaths<T>(
   return undefined;
 }
 
+// ─── Expiry Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Check whether a credential is expired.
+ *
+ * Accepts ISO 8601 strings (agy antigravity-oauth-token: `token.expiry`)
+ * or Unix timestamps in milliseconds (oauth_creds.json: `expiry_date`).
+ * Missing or malformed values are treated as not-expired — we err on the
+ * side of letting the API reject the token rather than falsely discarding it.
+ */
+function isExpired(expiryTime: unknown): boolean {
+  if (typeof expiryTime === "number") {
+    return !Number.isNaN(expiryTime) && expiryTime <= Date.now();
+  }
+  if (typeof expiryTime === "string") {
+    const parsed = Date.parse(expiryTime);
+    return !Number.isNaN(parsed) && parsed <= Date.now();
+  }
+  return false;
+}
+
 // ─── Credential Extraction ──────────────────────────────────────────────────
 
 /**
@@ -101,6 +122,8 @@ export function walkAuthPaths<T>(
  * Handles all known token formats: bare string tokens, JSON with
  * access_token, nested {token: {access_token}}, and
  * {agy: string | {access: string}}.
+ *
+ * Expired tokens are skipped — the walk continues to the next file.
  *
  * Does NOT handle the `apiKey` field — callers that need apiKey
  * extraction should check it before delegating to this function.
@@ -111,14 +134,14 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
 
   if (!isRecord(parsed)) return undefined;
 
-  // oauth_creds.json: top-level access_token
-  let token = stringValue(parsed.access_token);
-  if (token) return token;
+  // oauth_creds.json: top-level access_token — missing/malformed expiry_date → accept token
+  const topToken = stringValue(parsed.access_token);
+  if (topToken && !isExpired(parsed.expiry_date)) return topToken;
 
-  // agy antigravity-oauth-token format: {token: {access_token: "..."}}
+  // agy antigravity-oauth-token format — missing/malformed token.expiry → accept token
   if (isRecord(parsed.token)) {
-    token = stringValue(parsed.token.access_token);
-    if (token) return token;
+    const nestedToken = stringValue(parsed.token.access_token);
+    if (nestedToken && !isExpired(parsed.token.expiry)) return nestedToken;
   }
 
   // pi auth.json / agy format: {agy: "..."} or {agy: {access: "..."}}
@@ -126,7 +149,7 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
   if (typeof agyField === "string") return agyField;
   if (isRecord(agyField)) {
     const access = stringValue(agyField.access);
-    if (access) return access;
+    if (access && !isExpired(agyField.expires)) return access;
   }
 
   return undefined;
