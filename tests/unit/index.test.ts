@@ -5,20 +5,20 @@ import { MODELS } from "../../src/models.js";
 
 /** Minimal mock of ExtensionAPI capturing registerProvider + on calls. */
 function makeMockPi(): ExtensionAPI & {
-  _captured: { name: string; config: Record<string, unknown> } | undefined;
-  _events: Map<string, unknown>;
+  captured: { name: string; config: Record<string, unknown> } | undefined;
+  events: Map<string, unknown>;
 } {
   const mock = {
-    _captured: undefined as { name: string; config: Record<string, unknown> } | undefined,
-    _events: new Map<string, unknown>(),
+    captured: undefined as { name: string; config: Record<string, unknown> } | undefined,
+    events: new Map<string, unknown>(),
     registerProvider(name: string, config: Record<string, unknown>) {
-      mock._captured = { name, config };
+      mock.captured = { name, config };
     },
     on(event: string, handler: unknown) {
-      mock._events.set(event, handler);
+      mock.events.set(event, handler);
     },
   };
-  // The mock object literal doesn't have _captured / _events directly —
+  // The mock object literal doesn't have captured / events directly —
   // they're accessed via closure. We need a type assertion to satisfy
   // the return type.
   return mock as any;
@@ -39,7 +39,7 @@ describe("provider registration", () => {
     const mod = await import("../../src/index.js");
     await mod.default(fakePi);
 
-    const captured = fakePi._captured;
+    const captured = fakePi.captured;
     expect(captured).toBeDefined();
     expect(captured!.name).toBe(PROVIDER_NAME);
     expect(captured!.config.baseUrl).toBe(DEFAULT_API_BASE);
@@ -54,7 +54,7 @@ describe("provider registration", () => {
     const mod = await import("../../src/index.js");
     await mod.default(fakePi);
 
-    const models = fakePi._captured!.config.models as Array<Record<string, unknown>>;
+    const models = fakePi.captured!.config.models as Array<Record<string, unknown>>;
     expect(models).toHaveLength(MODELS.length);
     for (let i = 0; i < MODELS.length; i++) {
       expect(models[i].id).toBe(MODELS[i].id);
@@ -74,7 +74,7 @@ describe("provider registration", () => {
     const mod = await import("../../src/index.js");
     await mod.default(fakePi);
 
-    const oauth = fakePi._captured!.config.oauth as Record<string, unknown>;
+    const oauth = fakePi.captured!.config.oauth as Record<string, unknown>;
     expect(oauth.name).toBe("Google Gemini (agy)");
     expect(typeof oauth.login).toBe("function");
     expect(typeof oauth.refreshToken).toBe("function");
@@ -97,6 +97,6 @@ describe("message_end event registration", () => {
     const mod = await import("../../src/index.js");
     await mod.default(fakePi);
 
-    expect(fakePi._events.has("message_end")).toBe(true);
+    expect(fakePi.events.has("message_end")).toBe(true);
   });
 });

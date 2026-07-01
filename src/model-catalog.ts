@@ -94,14 +94,7 @@ export const MODELS: readonly ModelConfig[] = [
     cost: { input: 1.5, output: 9.0, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: DEFAULT_CONTEXT_WINDOW,
     maxTokens: DEFAULT_MAX_TOKENS,
-    thinkingLevelMap: {
-      off: null,
-      minimal: "minimal",
-      low: "low",
-      medium: "medium",
-      high: "high",
-      xhigh: null,
-    },
+    thinkingLevelMap: DEFAULT_THINKING_LEVEL_MAP,
   },
   {
     id: "gemini-3.1-pro-preview",
@@ -111,14 +104,7 @@ export const MODELS: readonly ModelConfig[] = [
     cost: { input: 2.0, output: 12.0, cacheRead: 0.2, cacheWrite: 0 },
     contextWindow: DEFAULT_CONTEXT_WINDOW,
     maxTokens: DEFAULT_MAX_TOKENS,
-    thinkingLevelMap: {
-      off: null,
-      minimal: "minimal",
-      low: "low",
-      medium: "medium",
-      high: "high",
-      xhigh: null,
-    },
+    thinkingLevelMap: DEFAULT_THINKING_LEVEL_MAP,
   },
 ];
 

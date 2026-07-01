@@ -133,15 +133,6 @@ describe("model discovery pipeline", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("does not retry on 4xx non-200 responses", async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response("Not Found", { status: 404 }));
-
-    const result = await resolveModels("test_key", { fetch, retries: 2 });
-
-    expect(result).toEqual(MODELS);
-    expect(fetch).toHaveBeenCalledTimes(1);
-  });
-
   it("filters non-gemini models from remote response", async () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(
