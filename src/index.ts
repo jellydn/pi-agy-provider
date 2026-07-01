@@ -21,7 +21,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveApiBase, PROVIDER_NAME, PROVIDER_DISPLAY_NAME, ENV_API_KEY } from "./env.js";
-import { resolveApiKey } from "./auth.js";
+import { resolveApiKey } from "./config-store.js";
 import { resolveModels } from "./models.js";
 import { handleGeminiError } from "./error-handler.js";
 import { getApiKey as oauthGetApiKey, login, refreshToken } from "./oauth.js";

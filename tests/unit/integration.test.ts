@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { resolveApiKey } from "../../src/auth.js";
+import { resolveApiKey } from "../../src/config-store.js";
 import { fetchRemoteModels, resolveModels, MODELS } from "../../src/models.js";
 
 // ─── Credential resolution pipeline (config-store → auth) ───────────────────
