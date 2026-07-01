@@ -64,8 +64,7 @@ function parseRemoteModel(raw: RawModelEntry, fallback?: ModelConfig): ModelConf
   const name = stringValue(raw.name) ?? fallback?.name ?? id;
   const contextWindow =
     numberValue(raw.context_length) ?? fallback?.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
-  const maxTokens =
-    numberValue(raw.max_output_tokens) ?? fallback?.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const maxTokens = numberValue(raw.max_output_tokens) ?? fallback?.maxTokens ?? DEFAULT_MAX_TOKENS;
   const reasoning = booleanValue(raw.reasoning) ?? fallback?.reasoning ?? true;
 
   const pricing = isRecord(raw.pricing) ? raw.pricing : undefined;
