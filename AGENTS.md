@@ -26,9 +26,10 @@ pi extension that registers Google Gemini models as a model provider via pi's bu
 ## Architecture
 
 - **`src/index.ts`** — Extension entry. Calls `pi.registerProvider()`, wires models + OAuth + API base + error handler.
-- **`src/models.ts`** — Model definitions (Gemini 3.5 Flash, Gemini 3.1 Pro) and dynamic model discovery (`fetchRemoteModels`, `resolveModels` with static fallback).
-- **`src/auth.ts`** — API key resolution: GEMINI_API_KEY → GOOGLE_API_KEY → agy OAuth → pi auth.json.
-- **`src/config-store.ts`** — Credential store traversal: file path resolution, JSON parsing with ENOENT suppression, agy OAuth token extraction from `~/.gemini/` files.
+- **`src/model-catalog.ts`** — Static model definitions: types (`ThinkingLevel`, `ThinkingLevelMap`, `ModelConfig`), the `MODELS` array, thinking level maps, shared defaults (`DEFAULT_CONTEXT_WINDOW`, `DEFAULT_MAX_TOKENS`), and `modelIds()` helper.
+- **`src/model-discovery.ts`** — Dynamic model discovery: `fetchRemoteModels` with retry (network errors + transient 5xx), `parseRemoteModel`, `resolveModels` with static fallback.
+- **`src/models.ts`** — Barrel re-export from `model-catalog.ts` + `model-discovery.ts` (stable public API surface).
+- **`src/config-store.ts`** — Credential medium: file path resolution, JSON parsing with ENOENT suppression, agy OAuth token extraction from `~/.gemini/` files, and full API key resolution chain (`resolveApiKey`).
 - **`src/oauth.ts`** — `/login` flow: (1) agy OAuth reuse — detects existing agy CLI credentials; (2) Static API key — browser-assisted manual paste.
 - **`src/env.ts`** — Constants and environment helpers (API base, env vars, sanitization, URL builder).
 - **`src/errors.ts`** — Error classification (invalid_key, rate_limited, quota_exceeded, unknown).

@@ -71,7 +71,7 @@ Transient network failures during model discovery trigger automatic retries:
 
 - **Retry count** (`MODELS_FETCH_RETRIES`): 1 (2 total attempts)
 - **Retry delay** (`MODELS_FETCH_RETRY_DELAY_MS`): 1,000 ms base, doubling per attempt (exponential backoff)
-- **Scope**: Only network errors (timeout, connection refused) are retried. HTTP error responses (4xx, 5xx) return immediately without retry, falling back to the static catalog.
+- **Scope**: Network errors (timeout, connection refused) and transient 5xx responses (502, 503, 504) are retried. Permanent HTTP errors (4xx, 500, 501) return immediately without retry, falling back to the static catalog.
 - **Configurable**: `RemoteModelsOptions` accepts `retries` and `retryDelayMs` overrides for testing.
 
 ---
@@ -82,7 +82,7 @@ Transient network failures during model discovery trigger automatic retries:
 
 Three categories:
 
-- **Invalid key** (401, unauthorized) — credentials need refresh
+- **Invalid key** (401, unauthorized, unauthenticated) — credentials need refresh
 - **Rate limited** (429) — temporary throttle
 - **Quota exceeded** (403, forbidden) — usage limit reached
 
