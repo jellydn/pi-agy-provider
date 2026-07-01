@@ -1,0 +1,16 @@
+*.map
+*.d.ts.map
+dist/
+*.tsbuildinfo
+*.tsbuildinfo.*
+.git/
+.gitignore
+.gitattributes
+.github/
+.DS_Store
+*.swp
+*.swo
+tests/**/__snapshots__/
+tests/**/fixtures/
+.planning/
+doc/

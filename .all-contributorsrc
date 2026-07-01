@@ -1,0 +1,16 @@
+{
+  "projectName": "pi-agy-provider",
+  "projectOwner": "jellydn",
+  "repoType": "github",
+  "files": ["README.md"],
+  "imageSize": 100,
+  "contributors": [
+    {
+      "login": "jellydn",
+      "name": "Huynh Duc Dung",
+      "avatar_url": "https://avatars.githubusercontent.com/jellydn",
+      "profile": "https://github.com/jellydn",
+      "contributions": ["code", "doc"]
+    }
+  ]
+}
