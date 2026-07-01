@@ -13,8 +13,6 @@ export {
   DEFAULT_THINKING_LEVEL_MAP,
   NO_THINKING_MAP,
   type ModelConfig,
-  DEFAULT_CONTEXT_WINDOW,
-  DEFAULT_MAX_TOKENS,
   MODELS,
   modelIds,
 } from "./model-catalog.js";
