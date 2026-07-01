@@ -4,73 +4,73 @@
 
 ## Languages
 
-| Language   | Version     | Notes                                      |
-| ---------- | ----------- | ------------------------------------------ |
+| Language   | Version      | Notes                                         |
+| ---------- | ------------ | --------------------------------------------- |
 | TypeScript | 6.0 (devDep) | Strict mode, `noEmit: true`, `target: ES2022` |
-| JavaScript | —           | Output from pi's runtime TS loader         |
+| JavaScript | —            | Output from pi's runtime TS loader            |
 
 ## Runtime
 
-| Runtime | Version | Notes                                     |
-| ------- | ------- | ----------------------------------------- |
-| Node.js  | >= 22   | Enforced via `engines` in `package.json`  |
+| Runtime | Version   | Notes                                    |
+| ------- | --------- | ---------------------------------------- |
+| Node.js | >= 22     | Enforced via `engines` in `package.json` |
 | pi      | >= 0.80.2 | Coding agent that loads `.ts` extensions |
 
 ## Module System
 
-| Feature          | Value              |
-| ---------------- | ------------------ |
-| Module format    | ESM (`"type": "module"`) |
-| Module resolution | `bundler`          |
-| Entry point      | `src/index.ts`     |
+| Feature           | Value                    |
+| ----------------- | ------------------------ |
+| Module format     | ESM (`"type": "module"`) |
+| Module resolution | `bundler`                |
+| Entry point       | `src/index.ts`           |
 
 ## Core Dependencies
 
 ### Peer Dependencies (provided by pi runtime)
 
-| Package                             | Version | Purpose                                    |
-| ----------------------------------- | ------- | ------------------------------------------ |
-| `@earendil-works/pi-ai`            | *       | OAuth types (`OAuthCredentials`, `OAuthLoginCallbacks`) |
-| `@earendil-works/pi-coding-agent`   | *       | `ExtensionAPI` type for provider registration |
+| Package                           | Version | Purpose                                                 |
+| --------------------------------- | ------- | ------------------------------------------------------- |
+| `@earendil-works/pi-ai`           | \*      | OAuth types (`OAuthCredentials`, `OAuthLoginCallbacks`) |
+| `@earendil-works/pi-coding-agent` | \*      | `ExtensionAPI` type for provider registration           |
 
 ### Dev Dependencies
 
-| Package                             | Version  | Purpose                                    |
-| ----------------------------------- | -------- | ------------------------------------------ |
-| `vitest`                            | ^4.1.5   | Unit test runner and assertion library     |
-| `typescript`                        | ^6.0.3   | Type checking (`tsc --noEmit`)             |
-| `oxlint`                            | ^1.71.0  | Linting (ESLint-compatible, Rust-based)    |
-| `oxfmt`                             | ^0.57.0  | Code formatting (Rust-based)               |
-| `@types/node`                       | ^26.0.1  | Node.js type definitions                   |
-| `bumpp`                             | ^11.1.0  | Automated version bump + tag + commit      |
-| `all-contributors-cli`              | ^6.26.1  | Contributors table generation              |
-| `np`                                | ^11.2.1  | npm publish helper                         |
+| Package                | Version | Purpose                                 |
+| ---------------------- | ------- | --------------------------------------- |
+| `vitest`               | ^4.1.5  | Unit test runner and assertion library  |
+| `typescript`           | ^6.0.3  | Type checking (`tsc --noEmit`)          |
+| `oxlint`               | ^1.71.0 | Linting (ESLint-compatible, Rust-based) |
+| `oxfmt`                | ^0.57.0 | Code formatting (Rust-based)            |
+| `@types/node`          | ^26.0.1 | Node.js type definitions                |
+| `bumpp`                | ^11.1.0 | Automated version bump + tag + commit   |
+| `all-contributors-cli` | ^6.26.1 | Contributors table generation           |
+| `np`                   | ^11.2.1 | npm publish helper                      |
 
 ## Configuration Files
 
-| File               | Purpose                                        |
-| ------------------ | ---------------------------------------------- |
-| `package.json`     | Metadata, scripts, deps, `pi.extensions` config |
-| `tsconfig.json`    | TypeScript strict mode, `noEmit`, `bundler`    |
-| `vitest.config.ts` | Include pattern `tests/**/*.test.ts`           |
-| `.oxlintrc.json`   | Plugins: typescript, unicorn, oxc, import, jest |
-| `.oxfmtrc.json`    | No ignore patterns (empty config)              |
+| File               | Purpose                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `package.json`     | Metadata, scripts, deps, `pi.extensions` config                                               |
+| `tsconfig.json`    | TypeScript strict mode, `noEmit`, `bundler`                                                   |
+| `vitest.config.ts` | Include pattern `tests/**/*.test.ts`                                                          |
+| `.oxlintrc.json`   | Plugins: typescript, unicorn, oxc, import, jest                                               |
+| `.oxfmtrc.json`    | No ignore patterns (empty config)                                                             |
 | `prek.toml`        | Pre-commit hooks: trailing-whitespace, EOF, large files, JSON/TOML/YAML checks, oxlint, oxfmt |
-| `renovate.json`    | Extends `config:recommended`                    |
+| `renovate.json`    | Extends `config:recommended`                                                                  |
 
 ## CI
 
-| File                    | What it does                                       |
-| ----------------------- | -------------------------------------------------- |
+| File                       | What it does                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
 | `.github/workflows/ci.yml` | Matrix: Node 22 + Node 24; unit tests on push/PR; E2E on `workflow_dispatch` with `run_e2e=true` |
 
 ## Publishing
 
-| Script             | Tool   | What it does                           |
-| ------------------ | ------ | -------------------------------------- |
-| `release:*`        | bumpp  | Bump version, git commit, tag, push    |
-| `pub`              | npm    | `npm publish`                          |
-| `np` config        | np     | Branch: `main`, no yarn/pnpm, `releaseDraft: true` |
+| Script      | Tool  | What it does                                       |
+| ----------- | ----- | -------------------------------------------------- |
+| `release:*` | bumpp | Bump version, git commit, tag, push                |
+| `pub`       | npm   | `npm publish`                                      |
+| `np` config | np    | Branch: `main`, no yarn/pnpm, `releaseDraft: true` |
 
 ## Notable Absences
 

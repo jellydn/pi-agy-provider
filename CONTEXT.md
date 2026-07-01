@@ -37,6 +37,7 @@ A short-lived (~1 hour) OAuth access token stored by the agy CLI at `~/.gemini/a
 ### Credential Store
 
 JSON files that store credentials:
+
 - **agy CLI store**: `~/.gemini/antigravity-cli/antigravity-oauth-token` (bare token), `~/.gemini/oauth_creds.json` (JSON with `access_token`)
 - **pi auth store**: `~/.pi/agent/auth.json` — `agy` (string) or `agy.access` (OAuth object)
 
@@ -56,6 +57,7 @@ Two hardcoded models: Gemini 3.5 Flash and Gemini 3.1 Pro Preview, with pricing,
 ### Model Defaults
 
 Shared constants used by both the static model catalog and remote model parsing as fallback values:
+
 - **`DEFAULT_CONTEXT_WINDOW`**: 1,000,000 tokens
 - **`DEFAULT_MAX_TOKENS`**: 65,536 output tokens
 
@@ -66,6 +68,7 @@ Runtime fetch from Gemini's `/models` endpoint (OpenAI-compatible format). Only 
 ### Model Discovery Retry
 
 Transient network failures during model discovery trigger automatic retries:
+
 - **Retry count** (`MODELS_FETCH_RETRIES`): 1 (2 total attempts)
 - **Retry delay** (`MODELS_FETCH_RETRY_DELAY_MS`): 1,000 ms base, doubling per attempt (exponential backoff)
 - **Scope**: Only network errors (timeout, connection refused) are retried. HTTP error responses (4xx, 5xx) return immediately without retry, falling back to the static catalog.
@@ -78,6 +81,7 @@ Transient network failures during model discovery trigger automatic retries:
 ### Error Classification
 
 Three categories:
+
 - **Invalid key** (401, unauthorized) — credentials need refresh
 - **Rate limited** (429) — temporary throttle
 - **Quota exceeded** (403, forbidden) — usage limit reached

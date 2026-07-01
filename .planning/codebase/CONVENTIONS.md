@@ -77,6 +77,7 @@ export const GEMINI_ERROR_MESSAGES: Record<GeminiErrorType, string> = {
 ### Graceful Degradation
 
 Every external call degrades silently:
+
 - **Model discovery**: `fetchRemoteModels()` returns `undefined` on error → static fallback
 - **Credential reading**: `walkAuthPaths()` suppresses ENOENT → next file in chain
 - **Error handling**: Non-Gemini errors silently pass through
@@ -84,17 +85,19 @@ Every external call degrades silently:
 ### Immutable Data
 
 Model input arrays are cloned before registration:
+
 ```typescript
 // From src/index.ts
 models: models.map((model) => ({
   ...model,
   input: [...model.input],
-}))
+}));
 ```
 
 ## Naming
 
 ### Functions
+
 - `resolve*` — resolve a value from multiple sources with fallback (e.g., `resolveApiKey`, `resolveApiBase`, `resolveModels`)
 - `fetch*` — async I/O operations (e.g., `fetchRemoteModels`)
 - `walk*` — iterate over a collection, possibly with early exit (e.g., `walkAuthPaths`)
@@ -104,26 +107,31 @@ models: models.map((model) => ({
 - `handle*` — event handler (e.g., `handleGeminiError`)
 
 ### Types
+
 - PascalCase: `ModelConfig`, `ThinkingLevelMap`, `AuthKeyOptions`, `RemoteModelsOptions`, `RawModelEntry`
 - `*Options` suffix for dependency-injected config objects
 - `*Map` suffix for record/constant lookup tables
 
 ### Constants
+
 - UPPER_SNAKE_CASE for module-level constants: `MODELS`, `DEFAULT_API_BASE`, `ENV_API_KEY`
 - Prefix `ENV_` for environment variable names: `ENV_API_KEY`, `ENV_API_BASE`
 - Prefix `DEFAULT_` for defaults: `DEFAULT_API_BASE`, `DEFAULT_ENDPOINT`, `DEFAULT_THINKING_LEVEL_MAP`
 
 ### Files
+
 - kebab-case: `config-store.ts`, `error-handler.ts`
 - One module per file, one concern per module
 
 ## Error Handling
 
 ### Pattern: Never Throw, Return Undefined
+
 - I/O functions return `undefined` on failure, never throw (except `login()` for empty key)
 - Callers check for `undefined` and fall back gracefully
 
 ### Pattern: Try/Catch at Boundaries
+
 - All network and file I/O is wrapped in try/catch
 - ENOENT silently suppressed (credential files may not exist)
 - Other errors logged with `console.warn` prefix `[agy]`
@@ -137,6 +145,7 @@ models: models.map((model) => ({
 ## Commits
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
 - `feat(scope): description`
 - `fix(scope): description`
 - `docs:`, `refactor:`, `test:`, `chore:`, `ci:`

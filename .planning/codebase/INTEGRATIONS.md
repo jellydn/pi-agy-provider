@@ -6,44 +6,46 @@
 
 ### Google Gemini API (OpenAI-compatible endpoint)
 
-| Attribute        | Value                                                                           |
-| ---------------- | ------------------------------------------------------------------------------- |
-| **Base URL**     | `https://generativelanguage.googleapis.com/v1beta/openai` (default, overridable) |
-| **Override**     | `GEMINI_API_BASE` env var                                                       |
-| **Auth method**  | `Authorization: Bearer <key>` header                                            |
-| **Used by**      | All model inference, model list discovery                                       |
-| **Source**       | `src/env.ts` → `DEFAULT_API_BASE`, `resolveApiBase()`                           |
-| **Endpoint**     | `/chat/completions` for inference, `/models` for discovery                      |
+| Attribute       | Value                                                                            |
+| --------------- | -------------------------------------------------------------------------------- |
+| **Base URL**    | `https://generativelanguage.googleapis.com/v1beta/openai` (default, overridable) |
+| **Override**    | `GEMINI_API_BASE` env var                                                        |
+| **Auth method** | `Authorization: Bearer <key>` header                                             |
+| **Used by**     | All model inference, model list discovery                                        |
+| **Source**      | `src/env.ts` → `DEFAULT_API_BASE`, `resolveApiBase()`                            |
+| **Endpoint**    | `/chat/completions` for inference, `/models` for discovery                       |
 
 **Code locations:**
+
 - `src/env.ts` — `DEFAULT_API_BASE`, `ENV_API_BASE`, `resolveApiBase()`, `buildEndpointUrl()`
 - `src/models.ts` — `MODELS_ENDPOINT`, `fetchRemoteModels()`, `resolveModels()`
 - `src/index.ts` — wires API base + `api: "openai-completions"` into pi's `registerProvider()`
 
 ### Google AI Studio (API key provisioning)
 
-| Attribute      | Value                                              |
-| -------------- | -------------------------------------------------- |
-| **URL**        | `https://aistudio.google.com/apikey`               |
-| **Used by**    | `/login` flow — opens browser for manual key creation |
-| **Source**     | `src/env.ts` → `API_KEY_URL`                       |
+| Attribute   | Value                                                 |
+| ----------- | ----------------------------------------------------- |
+| **URL**     | `https://aistudio.google.com/apikey`                  |
+| **Used by** | `/login` flow — opens browser for manual key creation |
+| **Source**  | `src/env.ts` → `API_KEY_URL`                          |
 
 ## Credential Sources
 
 The provider resolves credentials from multiple sources in priority order:
 
-| Priority | Source                          | Location / Env Var                           | Type               | Lifetime         |
-| -------- | ------------------------------- | -------------------------------------------- | ------------------ | ---------------- |
-| 1        | Provided API key                | Function argument `resolveApiKey(providedKey)` | Static API key     | Permanent        |
-| 2        | `GEMINI_API_KEY` env var        | `process.env.GEMINI_API_KEY`                 | Static API key     | Permanent        |
-| 3        | `GOOGLE_API_KEY` env var        | `process.env.GOOGLE_API_KEY`                 | Static API key     | Permanent        |
-| 4        | agy OAuth token (bare string)   | `~/.gemini/antigravity-cli/antigravity-oauth-token` | OAuth access token | ~1 hour |
-| 5        | Gemini OAuth creds              | `~/.gemini/oauth_creds.json` → `access_token` field | OAuth access token | ~1 hour |
-| 6        | pi auth.json (apiKey field)     | `~/.pi/agent/auth.json` → `apiKey` field     | Static API key     | Permanent        |
-| 7        | pi auth.json (agy string)       | `~/.pi/agent/auth.json` → `agy` field (string) | Varies           | Varies           |
-| 8        | pi auth.json (agy.access)       | `~/.pi/agent/auth.json` → `agy.access` field | OAuth access token | ~1 hour |
+| Priority | Source                        | Location / Env Var                                  | Type               | Lifetime  |
+| -------- | ----------------------------- | --------------------------------------------------- | ------------------ | --------- |
+| 1        | Provided API key              | Function argument `resolveApiKey(providedKey)`      | Static API key     | Permanent |
+| 2        | `GEMINI_API_KEY` env var      | `process.env.GEMINI_API_KEY`                        | Static API key     | Permanent |
+| 3        | `GOOGLE_API_KEY` env var      | `process.env.GOOGLE_API_KEY`                        | Static API key     | Permanent |
+| 4        | agy OAuth token (bare string) | `~/.gemini/antigravity-cli/antigravity-oauth-token` | OAuth access token | ~1 hour   |
+| 5        | Gemini OAuth creds            | `~/.gemini/oauth_creds.json` → `access_token` field | OAuth access token | ~1 hour   |
+| 6        | pi auth.json (apiKey field)   | `~/.pi/agent/auth.json` → `apiKey` field            | Static API key     | Permanent |
+| 7        | pi auth.json (agy string)     | `~/.pi/agent/auth.json` → `agy` field (string)      | Varies             | Varies    |
+| 8        | pi auth.json (agy.access)     | `~/.pi/agent/auth.json` → `agy.access` field        | OAuth access token | ~1 hour   |
 
 **Code locations:**
+
 - `src/auth.ts` — `resolveApiKey()` orchestrates the resolution chain
 - `src/config-store.ts` — `defaultAuthPaths()`, `walkAuthPaths()`, `resolveAgyOAuthToken()`
 - `src/oauth.ts` — `login()`, `refreshToken()`, `getApiKey()`
@@ -52,12 +54,12 @@ The provider resolves credentials from multiple sources in priority order:
 
 The extension integrates with pi through:
 
-| Integration Point         | Interface                                                | Source                |
-| ------------------------- | -------------------------------------------------------- | --------------------- |
-| Provider registration     | `pi.registerProvider("agy", config)`                     | `src/index.ts:30-51`  |
-| OAuth/login               | `login`, `refreshToken`, `getApiKey` callbacks           | `src/oauth.ts`        |
-| Error surface             | `pi.on("message_end", handleGeminiError)`                | `src/index.ts:57`     |
-| Model listing             | Static catalog + dynamic `/models` fetch                 | `src/models.ts`       |
+| Integration Point     | Interface                                      | Source               |
+| --------------------- | ---------------------------------------------- | -------------------- |
+| Provider registration | `pi.registerProvider("agy", config)`           | `src/index.ts:30-51` |
+| OAuth/login           | `login`, `refreshToken`, `getApiKey` callbacks | `src/oauth.ts`       |
+| Error surface         | `pi.on("message_end", handleGeminiError)`      | `src/index.ts:57`    |
+| Model listing         | Static catalog + dynamic `/models` fetch       | `src/models.ts`      |
 
 ## No External SDKs
 
@@ -67,5 +69,5 @@ This provider does **not** depend on the `@google/generative-ai` SDK or any othe
 
 | Package                           | Provided by | Used for                                        |
 | --------------------------------- | ----------- | ----------------------------------------------- |
-| `@earendil-works/pi-ai`          | pi runtime  | `OAuthCredentials`, `OAuthLoginCallbacks` types  |
+| `@earendil-works/pi-ai`           | pi runtime  | `OAuthCredentials`, `OAuthLoginCallbacks` types |
 | `@earendil-works/pi-coding-agent` | pi runtime  | `ExtensionAPI` type                             |
