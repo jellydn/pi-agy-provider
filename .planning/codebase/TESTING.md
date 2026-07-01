@@ -4,19 +4,19 @@
 
 ## Framework
 
-| Aspect            | Details                                |
-| ----------------- | -------------------------------------- |
-| **Runner**        | Vitest 4.1.5                           |
-| **Config**        | `vitest.config.ts` — include `tests/**/*.test.ts` |
-| **Assertions**    | Vitest built-in (`expect`)             |
-| **Mocking**       | Vitest built-in (`vi.fn()`, `vi.mock()`, `vi.stubGlobal()`) |
-| **Coverage**      | Not configured (no thresholds)         |
+| Aspect         | Details                                                     |
+| -------------- | ----------------------------------------------------------- |
+| **Runner**     | Vitest 4.1.5                                                |
+| **Config**     | `vitest.config.ts` — include `tests/**/*.test.ts`           |
+| **Assertions** | Vitest built-in (`expect`)                                  |
+| **Mocking**    | Vitest built-in (`vi.fn()`, `vi.mock()`, `vi.stubGlobal()`) |
+| **Coverage**   | Not configured (no thresholds)                              |
 
 ## Test Structure
 
 ```
 tests/
-├── unit/                       # Unit tests (9 files)
+├── unit/                       # Unit + integration tests (10 files)
 │   ├── index.test.ts           # Provider registration, event wiring
 │   ├── models.test.ts          # Static models, remote fetch, resolveModels
 │   ├── auth.test.ts            # API key resolution chain
@@ -25,7 +25,8 @@ tests/
 │   ├── env.test.ts             # Constants, URL resolution, sanitization
 │   ├── errors.test.ts          # Error classification
 │   ├── error-handler.test.ts   # Error pipeline (filter, classify, deliver)
-│   └── utils.test.ts           # Type guards
+│   ├── utils.test.ts           # Type guards
+│   └── integration.test.ts     # Cross-module pipeline tests
 ├── type/
 │   └── contract.ts             # TypeScript contract: extension matches ExtensionAPI
 └── e2e/
@@ -52,17 +53,18 @@ it("falls back to agy OAuth token", () => {
 
 ### Mock Strategies
 
-| Strategy              | Used For                                | Example                              |
-| --------------------- | --------------------------------------- | ------------------------------------ |
-| Inline mock functions | Simple I/O injection                    | `readFile: () => "bare_token"`       |
-| `vi.fn()`             | Tracking calls, controlling returns     | `onAuth = vi.fn()`, `onPrompt = vi.fn()` |
-| `vi.stubGlobal()`     | Replacing globals (`fetch`, `console`)  | `vi.stubGlobal("fetch", vi.fn())`    |
-| `vi.mock()`           | Module-level mocks with `vi.hoisted()`  | `mockResolveAgyOAuthToken`           |
-| `vi.spyOn()`          | Observing console.warn/error            | `vi.spyOn(console, "warn")`          |
+| Strategy              | Used For                               | Example                                  |
+| --------------------- | -------------------------------------- | ---------------------------------------- |
+| Inline mock functions | Simple I/O injection                   | `readFile: () => "bare_token"`           |
+| `vi.fn()`             | Tracking calls, controlling returns    | `onAuth = vi.fn()`, `onPrompt = vi.fn()` |
+| `vi.stubGlobal()`     | Replacing globals (`fetch`, `console`) | `vi.stubGlobal("fetch", vi.fn())`        |
+| `vi.mock()`           | Module-level mocks with `vi.hoisted()` | `mockResolveAgyOAuthToken`               |
+| `vi.spyOn()`          | Observing console.warn/error           | `vi.spyOn(console, "warn")`              |
 
 ### Test File Structure
 
 Each test file follows a consistent pattern:
+
 1. **Imports**: From `vitest` and the source module under test
 2. **`describe` blocks**: One per exported function
 3. **`it` blocks**: One assertion scenario per test
@@ -71,12 +73,14 @@ Each test file follows a consistent pattern:
 ## Test Coverage per Module
 
 ### `src/index.ts` (3 tests)
+
 - Registers provider with correct `baseUrl`, `apiKey`, `api` type
 - Registers all static models as fallback when API unavailable
 - Wires OAuth with `login`, `refreshToken`, `getApiKey`
 - Registers `message_end` event listener
 
 ### `src/models.ts` (14 tests)
+
 - `modelIds()` returns all IDs, starts with `gemini-`
 - Static models have valid costs/context/tokens/reasoning
 - All 6 thinking levels declared per model
@@ -86,6 +90,7 @@ Each test file follows a consistent pattern:
 - `resolveModels()`: no key → static, failed fetch → static, successful fetch → remote
 
 ### `src/auth.ts` (12 tests)
+
 - Priority: provided → `GEMINI_API_KEY` → `GOOGLE_API_KEY`
 - `GEMINI_API_KEY` wins over `GOOGLE_API_KEY`
 - File fallback: antigravity-oauth-token, oauth_creds.json, auth.json (apiKey, agy string, agy.access object)
@@ -94,11 +99,13 @@ Each test file follows a consistent pattern:
 - Bare string token extraction from antigravity-oauth-token
 
 ### `src/config-store.ts` (12 tests)
+
 - `defaultAuthPaths()` includes all 3 paths
 - `walkAuthPaths()`: first file wins, tries in order, handles non-JSON, malformed JSON, arrays
 - `resolveAgyOAuthToken()`: bare token, access_token, agy string, agy.access object, no files → undefined, empty string → undefined
 
 ### `src/oauth.ts` (11 tests)
+
 - agy OAuth auto-login when token exists
 - Manual paste flow when no agy token
 - AI Studio URL opened, key pasted
@@ -109,12 +116,14 @@ Each test file follows a consistent pattern:
 - `getApiKey()` returns access token
 
 ### `src/env.ts` (15 tests)
+
 - Constants: all exported constants verified
 - `resolveApiBase()`: default, override, trailing slash removal, whitespace trim, empty/blank fallback
 - `sanitizeApiKey()`: trim, paste wrappers, control chars, DEL, empty input
 - `buildEndpointUrl()`: default base, custom base
 
 ### `src/errors.ts` (10 tests)
+
 - 401 → invalid_key, unauthorized, invalid api key, api key not valid
 - 429 → rate_limited, rate limit, too many requests
 - 403 → quota_exceeded, quota, forbidden
@@ -123,6 +132,7 @@ Each test file follows a consistent pattern:
 - Empty string → unknown
 
 ### `src/error-handler.ts` (7 tests)
+
 - 401/429/403 errors → notify with correct message
 - Uses `ctx.model.provider` when message has no provider
 - Ignores other providers, non-error messages
@@ -130,18 +140,19 @@ Each test file follows a consistent pattern:
 - Ignores events with no message
 
 ### `type/contract.ts` (1 test)
+
 - Compile-time check that extension matches `ExtensionAPI` type
 
 ## E2E Tests (`tests/e2e/smoke.sh`)
 
-| Test                         | What it verifies                                     |
-| ---------------------------- | ---------------------------------------------------- |
-| Auth check                   | HTTP 200 from Gemini API with `GEMINI_API_KEY`       |
-| Gemini 3.5 Flash (math)      | Correct answer for "What is 2+3?"                    |
-| Gemini 3.5 Flash (knowledge) | Correct answer for "What is the capital of Japan?"   |
-| Gemini 3.1 Pro (math)        | Correct answer for "What is 6+2?"                    |
-| Invalid API key              | Error message containing 401/403/unauthorized        |
-| Invalid model ID             | Error message for non-existent model                 |
+| Test                         | What it verifies                                   |
+| ---------------------------- | -------------------------------------------------- |
+| Auth check                   | HTTP 200 from Gemini API with `GEMINI_API_KEY`     |
+| Gemini 3.5 Flash (math)      | Correct answer for "What is 2+3?"                  |
+| Gemini 3.5 Flash (knowledge) | Correct answer for "What is the capital of Japan?" |
+| Gemini 3.1 Pro (math)        | Correct answer for "What is 6+2?"                  |
+| Invalid API key              | Error message containing 401/403/unauthorized      |
+| Invalid model ID             | Error message for non-existent model               |
 
 Requirements: `GEMINI_API_KEY` env var, `pi` globally installed.
 
@@ -168,7 +179,7 @@ npm run test:e2e      # E2E smoke tests (needs GEMINI_API_KEY)
 
 ## Notable Gaps
 
-- **No integration tests** between modules (auth → config-store, index → all)
+- **Integration tests**: Added `tests/unit/integration.test.ts` covering credential chain, model discovery retry, and gemini-only filtering (10 tests). Coverage could expand to index → full provider pipeline.
 - **No performance tests** for model discovery or credential resolution
 - **No snapshot tests** for model catalog or error messages
 - **Coverage not measured** — no `c8`/`istanbul`/`v8` coverage configuration

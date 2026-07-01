@@ -12,11 +12,13 @@ The project follows pi's **Extension Module** pattern — a single default expor
 ## Entry Point
 
 `src/index.ts` exports a single async default function:
+
 ```typescript
-export default async function (pi: ExtensionAPI)
+export default async function (pi: ExtensionAPI);
 ```
 
 This function:
+
 1. Resolves the API base URL (`resolveApiBase()`)
 2. Resolves the API key (`resolveApiKey()`)
 3. Discovers models (`resolveModels()` — dynamic first, static fallback)
@@ -25,7 +27,7 @@ This function:
 
 ## Dependency Graph
 
-```
+```text
 src/index.ts (entry)
   ├── src/env.ts              — constants, env helpers, URL builder, key sanitization
   ├── src/config-store.ts     — credential medium (file walking, OAuth, API key resolution)
@@ -44,30 +46,39 @@ src/index.ts (entry)
 ## Module Responsibilities
 
 ### `src/index.ts` — Extension Entry
+
 **Role**: Orchestrator. Wires everything together and registers with pi.
+
 - No business logic — pure wiring.
 - Handles model input array cloning for immutability.
 
 ### `src/models.ts` — Barrel Re-export
+
 **Role**: Thin barrel that re-exports the public API from model-catalog and model-discovery.
 Preserves backward compatibility — all existing imports from `./models.js` continue to work.
 
 ### `src/model-catalog.ts` — Static Model Catalog
+
 **Role**: Defines model types, thinking levels, and the static MODELS array.
+
 - **Types**: `ThinkingLevel`, `ThinkingLevelMap`, `ModelConfig`.
 - **Static catalog**: 2 hardcoded `ModelConfig` objects (Gemini 3.5 Flash, Gemini 3.1 Pro).
 - **Thinking levels**: Explicit 6-level matrices (`off` through `xhigh`) mapping to `reasoning_effort` strings.
 - **Shared defaults**: `DEFAULT_CONTEXT_WINDOW` (1M) and `DEFAULT_MAX_TOKENS` (65,536) used by model-discovery.
 
 ### `src/model-discovery.ts` — Dynamic Model Discovery
+
 **Role**: Fetches the live model list from the Gemini API with retry and fallback.
+
 - **Remote fetch**: `fetchRemoteModels()` — calls Gemini's `/models` endpoint.
 - **Retry**: 1 retry on transient network errors with exponential backoff; HTTP errors skip retry.
 - **Parsing**: `parseRemoteModel()` converts raw API responses to `ModelConfig`, falling back to static catalog values.
 - **Resolution**: `resolveModels()` tries remote first, returns static `MODELS` on any error.
 
 ### `src/config-store.ts` — Credential Medium
+
 **Role**: Owns all credential resolution — file walking, OAuth extraction, and API key resolution.
+
 - `defaultAuthPaths()`: Returns ordered list of 3 file paths.
 - `walkAuthPaths()`: Generic iterator over auth files with ENOENT suppression.
 - `resolveAgyOAuthToken()`: Extract OAuth token from agy's file formats.
@@ -77,37 +88,47 @@ Preserves backward compatibility — all existing imports from `./models.js` con
 > into config-store to create a cohesive credential medium.
 
 ### `src/oauth.ts` — pi /login Integration
+
 **Role**: Implements pi's OAuth callbacks (`login`, `refreshToken`, `getApiKey`).
+
 - **Auto-login**: If agy credentials exist, logs in instantly.
 - **Manual fallback**: Opens AI Studio URL, prompts user to paste API key.
 - **Token lifecycle**: API keys set ~10 year expiry; agy OAuth tokens set ~55 min expiry.
 
 ### `src/env.ts` — Constants & Environment
+
 **Role**: Single source of truth for constants, env var names, and URL construction.
+
 - `resolveApiBase()`: Override detection with normalization.
 - `sanitizeApiKey()`: Strip terminal paste wrappers and control characters.
 - `buildEndpointUrl()`: Construct full endpoint URLs.
 
 ### `src/errors.ts` — Error Classification
+
 **Role**: Map raw Gemini error messages to user-friendly, actionable messages.
+
 - 4 error types: `invalid_key`, `rate_limited`, `quota_exceeded`, `unknown`.
 - Case-insensitive keyword matching against error body.
 - Each type has a full user-facing message with recovery instructions.
 
 ### `src/error-handler.ts` — Error Surface Pipeline
+
 **Role**: Pipeline: **Filter → Classify → Deliver**.
+
 - **Filter**: Only Gemini errors (`stopReason="error"`, provider matches `"agy"`).
 - **Classify**: Delegates to `classifyGeminiError()`.
 - **Deliver**: `ctx.ui.notify()` in UI mode, `console.error()` in TUI mode.
 
 ### `src/utils.ts` — Type Guards
+
 **Role**: Shared runtime type validation for I/O boundaries.
+
 - `isRecord(value)`: Plain object check (rejects arrays, null).
 - `stringValue(value)` / `numberValue(value)` / `booleanValue(value)`: Narrowed extractors.
 
 ## Data Flow
 
-```
+```text
 1. pi starts
    ↓
 2. Extension function invoked with ExtensionAPI
@@ -147,6 +168,8 @@ interface RemoteModelsOptions {
   apiKey?: string;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
 }
 ```
 

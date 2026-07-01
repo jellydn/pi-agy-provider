@@ -98,17 +98,42 @@ describe("model discovery pipeline", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("does not retry on HTTP error responses", async () => {
+  it("does not retry on 4xx HTTP errors", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response("Unauthorized", { status: 401 }));
 
     const result = await resolveModels("test_key", { fetch, retries: 2 });
 
-    // 401 is a permanent error, should not retry
+    // 401 is a permanent client error, should not retry
     expect(result).toEqual(MODELS);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("does not retry on non-200 HTTP responses", async () => {
+  it("retries on 5xx transient server errors", async () => {
+    const remoteData = {
+      data: [{ id: "gemini-model", name: "Model" }],
+    };
+
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("Service Unavailable", { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(remoteData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    const result = await resolveModels("test_key", {
+      fetch,
+      retries: 1,
+      retryDelayMs: 1,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry on 4xx non-200 responses", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response("Not Found", { status: 404 }));
 
     const result = await resolveModels("test_key", { fetch, retries: 2 });

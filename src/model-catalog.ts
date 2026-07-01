@@ -92,8 +92,8 @@ export const MODELS: readonly ModelConfig[] = [
     reasoning: true,
     input: ["text"],
     cost: { input: 1.5, output: 9.0, cacheRead: 0.15, cacheWrite: 0 },
-    contextWindow: 1_000_000,
-    maxTokens: 65_536,
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MAX_TOKENS,
     thinkingLevelMap: {
       off: null,
       minimal: "minimal",
@@ -109,8 +109,8 @@ export const MODELS: readonly ModelConfig[] = [
     reasoning: true,
     input: ["text"],
     cost: { input: 2.0, output: 12.0, cacheRead: 0.2, cacheWrite: 0 },
-    contextWindow: 1_000_000,
-    maxTokens: 65_536,
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MAX_TOKENS,
     thinkingLevelMap: {
       off: null,
       minimal: "minimal",

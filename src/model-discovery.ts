@@ -105,6 +105,27 @@ export interface RemoteModelsOptions {
   retryDelayMs?: number;
 }
 
+// ─── Retry Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Check if an error is a transient network failure worth retrying.
+ * Includes DNS/connection errors and timeout aborts — excludes parse
+ * errors, type errors, and other application-level failures.
+ */
+function isNetworkError(err: unknown): boolean {
+  if (err instanceof TypeError) return true; // connection refused, DNS failure
+  if (err instanceof DOMException) return err.name === "AbortError"; // timeout
+  return false;
+}
+
+/**
+ * Check if an HTTP status code represents a transient server error.
+ * 5xx errors (except 501 Not Implemented) are typically transient.
+ */
+function isTransientHttpError(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
+
 // ─── Remote Fetch ───────────────────────────────────────────────────────────
 
 /**
@@ -138,7 +159,14 @@ export async function fetchRemoteModels(
         signal: controller.signal,
       });
 
-      if (!response.ok) return undefined;
+      if (!response.ok) {
+        // Retry on transient 5xx errors; 4xx and permanent 5xx are terminal
+        if (isTransientHttpError(response.status) && attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt));
+          continue;
+        }
+        return undefined;
+      }
 
       const json: unknown = await response.json();
       const rawList: RawModelEntry[] = Array.isArray(json)
@@ -160,11 +188,13 @@ export async function fetchRemoteModels(
       }, []);
 
       return parsed.length > 0 ? parsed : undefined;
-    } catch {
-      // Only retry on network errors (timeout, connection refused, etc.).
-      // Non-OK responses (4xx, 5xx) exit immediately above.
-      if (attempt < maxRetries) {
+    } catch (err) {
+      // Only retry on transient network errors (timeout, connection
+      // refused, DNS failure). Parse errors and validation failures
+      // should not retry — the response body won't change.
+      if (isNetworkError(err) && attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt));
+        continue;
       }
     } finally {
       clearTimeout(timer);
