@@ -196,6 +196,7 @@ export async function fetchRemoteModels(
         await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt));
         continue;
       }
+      return undefined;
     } finally {
       clearTimeout(timer);
     }

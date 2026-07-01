@@ -43,8 +43,8 @@ describe("model discovery pipeline", () => {
   it("resolves remote models and falls back to static on network error", async () => {
     const fetch = vi
       .fn()
-      .mockRejectedValueOnce(new Error("ECONNREFUSED"))
-      .mockRejectedValueOnce(new Error("ETIMEDOUT"));
+      .mockRejectedValueOnce(new TypeError("ECONNREFUSED"))
+      .mockRejectedValueOnce(new TypeError("ETIMEDOUT"));
 
     const result = await resolveModels("test_key", {
       fetch,
@@ -78,7 +78,7 @@ describe("model discovery pipeline", () => {
 
     const fetch = vi
       .fn()
-      .mockRejectedValueOnce(new Error("ECONNRESET"))
+      .mockRejectedValueOnce(new TypeError("ECONNRESET"))
       .mockResolvedValueOnce(
         new Response(JSON.stringify(remoteData), {
           status: 200,
