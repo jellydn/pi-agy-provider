@@ -4,7 +4,10 @@ import { DEFAULT_API_BASE, ENV_API_KEY, PROVIDER_NAME } from "../../src/env.js";
 import { MODELS } from "../../src/models.js";
 
 /** Minimal mock of ExtensionAPI capturing registerProvider + on calls. */
-function makeMockPi(): ExtensionAPI & { _captured: { name: string; config: Record<string, unknown> } | undefined; _events: Map<string, unknown> } {
+function makeMockPi(): ExtensionAPI & {
+  _captured: { name: string; config: Record<string, unknown> } | undefined;
+  _events: Map<string, unknown>;
+} {
   const mock = {
     _captured: undefined as { name: string; config: Record<string, unknown> } | undefined,
     _events: new Map<string, unknown>(),

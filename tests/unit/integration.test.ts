@@ -166,12 +166,14 @@ describe("fetchRemoteModels retry behavior", () => {
   });
 
   it("returns remote models without retry on first success", async () => {
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ data: [{ id: "gemini-model", name: "Model" }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ id: "gemini-model", name: "Model" }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
 
     const result = await fetchRemoteModels({ apiKey: "test_key", fetch });
 
