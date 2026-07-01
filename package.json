@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Google Gemini provider for pi — access Gemini 3.5 Flash and Gemini 3.1 Pro through Google's OpenAI-compatible API, with agy (Antigravity CLI) OAuth credential reuse",
   "keywords": [
-    "ai",
     "agy",
+    "ai",
     "antigravity",
     "gemini",
     "google",

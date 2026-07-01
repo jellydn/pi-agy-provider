@@ -17,7 +17,15 @@ import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-a
 import { sanitizeApiKey, API_KEY_URL } from "./env.js";
 import { resolveAgyOAuthToken } from "./config-store.js";
 
-const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000; // API keys don't expire
+/** Lifetime for static API key credentials (10 years — effectively permanent). */
+const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Estimated lifetime for agy OAuth tokens (55 minutes).
+ * agy tokens expire after ~1 hour; we subtract 5 minutes as a safety buffer
+ * to avoid mid-request expiration.
+ */
+const AGY_OAUTH_LIFETIME_MS = 55 * 60 * 1000;
 
 // ─── Static API key helpers ──────────────────────────────────────────────────
 
@@ -25,7 +33,7 @@ function credentialsFromApiKey(apiKey: string): OAuthCredentials {
   return {
     refresh: apiKey,
     access: apiKey,
-    expires: Date.now() + TEN_YEARS_MS,
+    expires: Date.now() + API_KEY_LIFETIME_MS,
   };
 }
 
@@ -52,7 +60,7 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
     return {
       access: agyToken,
       refresh: agyToken,
-      expires: Date.now() + 55 * 60 * 1000,
+      expires: Date.now() + AGY_OAUTH_LIFETIME_MS,
     };
   }
 

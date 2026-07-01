@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Architecture**: Split `src/models.ts` into `src/model-catalog.ts` (static definitions) and `src/model-discovery.ts` (dynamic fetch + retry); `src/models.ts` is now a barrel re-export.
+- **Credentials**: Moved `resolveApiKey` into `src/config-store.ts` (credential medium); deleted `src/auth.ts`.
+
+### Fixed
+
+- **agy OAuth**: Support nested `{token: {access_token: "..."}}` format in `antigravity-oauth-token` file.
+- **Error classification**: `UNAUTHENTICATED` errors from expired tokens are now correctly classified as `invalid_key` instead of falling through to `unknown`.
+- **Retry scope**: Only retry on network errors and transient 5xx (502/503/504); 4xx and permanent 5xx return immediately.
+- **Simplification**: Removed `includeApiKey` boolean flag from `extractCredential` helper; eliminated duplicate file walks in credential resolution; removed redundant `thinkingLevelMap` duplication in `MODELS` array.
+
+### Added
+
+- **Integration tests**: `tests/unit/integration.test.ts` covering credential resolution chain, model discovery with retry, and AbortController timeout.
+
 ## [0.1.0] — 2026-07-02
 
 ### Added

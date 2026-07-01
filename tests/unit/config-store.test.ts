@@ -135,9 +135,95 @@ describe("resolveAgyOAuthToken", () => {
     expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
   });
 
+  it("extracts nested token.access_token from antigravity-oauth-token JSON", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: { access_token: "ya29.nested_token", token_type: "Bearer" },
+          auth_method: "oauth",
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.nested_token");
+  });
+
   it("returns undefined for empty string token", () => {
     const readFile = () => "   ";
     const fileExists = () => true;
     expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("skips expired nested token.access_token (ISO expiry)", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: {
+            access_token: "ya29.expired",
+            token_type: "Bearer",
+            expiry: "2020-01-01T00:00:00.000Z",
+          },
+        });
+      if (p.includes("oauth_creds.json")) return JSON.stringify({ access_token: "ya29.fresh" });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.fresh");
+  });
+
+  it("skips expired oauth_creds.json (epoch ms expiry)", () => {
+    const readFile = (p: string) => {
+      if (p.includes("oauth_creds.json"))
+        return JSON.stringify({ access_token: "ya29.expired", expiry_date: 1 });
+      if (p.includes("auth.json")) return JSON.stringify({ agy: "fresh_key" });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("fresh_key");
+  });
+
+  it("skips expired agy.access (epoch ms expires)", () => {
+    const readFile = (p: string) => {
+      if (p.includes("auth.json"))
+        return JSON.stringify({ agy: { type: "oauth", access: "ya29.expired", expires: 1 } });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("accepts token with missing expiry field", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: { access_token: "ya29.no_expiry", token_type: "Bearer" },
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.no_expiry");
+  });
+
+  it("accepts token with malformed expiry field", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: { access_token: "ya29.bad_expiry", token_type: "Bearer", expiry: "not-a-date" },
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.bad_expiry");
+  });
+
+  it("accepts token with valid future expiry", () => {
+    const futureExpiry = Date.now() + 86_400_000; // tomorrow
+    const readFile = (p: string) => {
+      if (p.includes("oauth_creds.json"))
+        return JSON.stringify({ access_token: "ya29.future", expiry_date: futureExpiry });
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("oauth_creds.json");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.future");
   });
 });

@@ -18,7 +18,7 @@ No build step. Pi loads `.ts` source directly (`tsconfig.json` has `noEmit: true
 ## Commands
 
 | Command                | Purpose                                  |
-| ---------------------- | ---------------------------------------  |
+| ---------------------- | ---------------------------------------- |
 | `npm test`             | Run unit tests via Vitest                |
 | `npm run test:watch`   | Run tests in watch mode                  |
 | `npm run test:e2e`     | E2E smoke tests (needs `GEMINI_API_KEY`) |

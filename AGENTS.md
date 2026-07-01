@@ -2,7 +2,7 @@
 
 ## Identity
 
-pi extension that registers Google Gemini models as a model provider via pi's built-in `openai-completions` streaming. Uses Google's OpenAI-compatible API endpoint. Entry point: `src/index.ts` (default export receiving `ExtensionAPI`).
+pi extension that registers Google Gemini models as a model provider via pi's built-in `openai-completions` streaming. Uses Google's OpenAI-compatible API endpoint. Entry point: `src/index.ts` (default export receiving `ExtensionAPI`). pi discovers it via `package.json` `"pi": { "extensions": ["./src/index.ts"] }`.
 
 ## Commands
 
@@ -10,7 +10,7 @@ pi extension that registers Google Gemini models as a model provider via pi's bu
 | ----------------------- | -------------------------------------------------- |
 | `npm test`              | Unit tests via Vitest                              |
 | `npm run test:watch`    | Watch mode                                         |
-| `npm run test:e2e`      | E2E smoke tests (requires `GEMINI_API_KEY` + `pi`)|
+| `npm run test:e2e`      | E2E smoke tests (requires `GEMINI_API_KEY` + `pi`) |
 | `npm run lint`          | Lint all source/test files with oxlint             |
 | `npm run format`        | Format all source/test files with oxfmt (in-place) |
 | `npm run format:check`  | Check formatting without writing                   |
@@ -26,9 +26,10 @@ pi extension that registers Google Gemini models as a model provider via pi's bu
 ## Architecture
 
 - **`src/index.ts`** — Extension entry. Calls `pi.registerProvider()`, wires models + OAuth + API base + error handler.
-- **`src/models.ts`** — Model definitions (Gemini 3.5 Flash, Gemini 3.1 Pro) and dynamic model discovery (`fetchRemoteModels`, `resolveModels` with static fallback).
-- **`src/auth.ts`** — API key resolution: GEMINI_API_KEY → GOOGLE_API_KEY → agy OAuth → pi auth.json.
-- **`src/config-store.ts`** — Credential store traversal: file path resolution, JSON parsing with ENOENT suppression, agy OAuth token extraction from `~/.gemini/` files.
+- **`src/model-catalog.ts`** — Static model definitions: types (`ThinkingLevel`, `ThinkingLevelMap`, `ModelConfig`), the `MODELS` array, thinking level maps, shared defaults (`DEFAULT_CONTEXT_WINDOW`, `DEFAULT_MAX_TOKENS`), and `modelIds()` helper.
+- **`src/model-discovery.ts`** — Dynamic model discovery: `fetchRemoteModels` with retry (network errors + transient 5xx), `parseRemoteModel`, `resolveModels` with static fallback.
+- **`src/models.ts`** — Barrel re-export from `model-catalog.ts` + `model-discovery.ts` (stable public API surface).
+- **`src/config-store.ts`** — Credential medium: file path resolution, JSON parsing with ENOENT suppression, agy OAuth token extraction from `~/.gemini/` files, and full API key resolution chain (`resolveApiKey`).
 - **`src/oauth.ts`** — `/login` flow: (1) agy OAuth reuse — detects existing agy CLI credentials; (2) Static API key — browser-assisted manual paste.
 - **`src/env.ts`** — Constants and environment helpers (API base, env vars, sanitization, URL builder).
 - **`src/errors.ts`** — Error classification (invalid_key, rate_limited, quota_exceeded, unknown).
@@ -38,8 +39,9 @@ pi extension that registers Google Gemini models as a model provider via pi's bu
 ## Testing
 
 - Unit tests in `tests/unit/` use dependency injection (mock `readFile`, `fileExists`, `env`) — no FS or network. `vitest.config.ts` includes `tests/**/*.test.ts`.
+- **Type contract test** at `tests/type/contract.ts` validates the extension function signature compiles — run via `npm run typecheck`.
 - E2E tests (`tests/e2e/smoke.sh`) run `pi --no-extensions -e <provider_path>` with real API key. Requires `pi` globally installed and `GEMINI_API_KEY` set.
-- CI runs unit tests on `push`/`PR` to `main`; E2E only on `workflow_dispatch` with `run_e2e=true`.
+- CI runs lint + format:check only on the `latest / Node 22` matrix cell (not pinned pi version or Node 24). Run them locally before pushing.
 
 ## Install
 

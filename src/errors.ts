@@ -41,6 +41,7 @@ export function classifyGeminiError(errorMessage: string): {
   if (
     matchesAny(lower, [
       "401",
+      "unauthenticated",
       "unauthorized",
       "invalid api key",
       "invalid_api_key",

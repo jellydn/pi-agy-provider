@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { resolveApiKey } from "../../src/auth.js";
+// resolveApiKey was moved from src/auth.ts to src/config-store.ts (credential medium).
+// This test file exercises the full API key resolution chain.
+import { resolveApiKey } from "../../src/config-store.js";
 
 describe("resolveApiKey", () => {
   it("returns provided key first", () => {
