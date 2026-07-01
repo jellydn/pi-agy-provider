@@ -120,6 +120,14 @@ export function modelIds(): string[] {
   return MODELS.map((m) => m.id);
 }
 
+// ─── Shared Model Defaults ─────────────────────────────────────────────────
+
+/** Default context window in tokens — used by both static catalog and remote fallback. */
+const DEFAULT_CONTEXT_WINDOW = 1_000_000;
+
+/** Default max output tokens — used by both static catalog and remote fallback. */
+const DEFAULT_MAX_TOKENS = 65_536;
+
 // ─── Dynamic Model Discovery ───────────────────────────────────────────────
 
 /** Endpoint for listing models (OpenAI-compatible, relative to API base). */
@@ -127,6 +135,12 @@ export const MODELS_ENDPOINT = "/models";
 
 /** Timeout for the model-list fetch (ms). Keeps registration responsive. */
 export const MODELS_FETCH_TIMEOUT_MS = 5_000;
+
+/** Number of retry attempts for transient network failures during model discovery. */
+const MODELS_FETCH_RETRIES = 1;
+
+/** Base delay between retry attempts (ms). Doubles with each attempt. */
+const MODELS_FETCH_RETRY_DELAY_MS = 1_000;
 
 /** Prefix filter for Gemini models returned by the API. */
 const GEMINI_PREFIX = "gemini-";
@@ -159,8 +173,8 @@ function parseRemoteModel(raw: RawModelEntry, fallback?: ModelConfig): ModelConf
   if (!id) return undefined;
 
   const name = stringValue(raw.name) ?? fallback?.name ?? id;
-  const contextWindow = numberValue(raw.context_length) ?? fallback?.contextWindow ?? 1_000_000;
-  const maxTokens = numberValue(raw.max_output_tokens) ?? fallback?.maxTokens ?? 65_536;
+  const contextWindow = numberValue(raw.context_length) ?? fallback?.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
+  const maxTokens = numberValue(raw.max_output_tokens) ?? fallback?.maxTokens ?? DEFAULT_MAX_TOKENS;
   const reasoning = booleanValue(raw.reasoning) ?? fallback?.reasoning ?? true;
 
   const pricing = isRecord(raw.pricing) ? raw.pricing : undefined;
@@ -193,6 +207,10 @@ export interface RemoteModelsOptions {
   apiKey?: string;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
+  /** Number of retry attempts for transient failures (default: 1). */
+  retries?: number;
+  /** Base delay between retry attempts in ms, doubles each attempt (default: 1000). */
+  retryDelayMs?: number;
 }
 
 /**
@@ -211,45 +229,55 @@ export async function fetchRemoteModels(
   const apiKey = options.apiKey;
   const fetchFn = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? MODELS_FETCH_TIMEOUT_MS;
+  const maxRetries = options.retries ?? MODELS_FETCH_RETRIES;
+  const retryDelayMs = options.retryDelayMs ?? MODELS_FETCH_RETRY_DELAY_MS;
 
   if (!apiKey || !fetchFn) return undefined;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await fetchFn(`${apiBase}${MODELS_ENDPOINT}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
+    try {
+      const response = await fetchFn(`${apiBase}${MODELS_ENDPOINT}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+      });
 
-    if (!response.ok) return undefined;
+      if (!response.ok) return undefined;
 
-    const json: unknown = await response.json();
-    const rawList: RawModelEntry[] = Array.isArray(json)
-      ? json
-      : isRecord(json) && Array.isArray(json.data)
-        ? (json.data as RawModelEntry[])
-        : [];
+      const json: unknown = await response.json();
+      const rawList: RawModelEntry[] = Array.isArray(json)
+        ? json
+        : isRecord(json) && Array.isArray(json.data)
+          ? (json.data as RawModelEntry[])
+          : [];
 
-    if (rawList.length === 0) return undefined;
+      if (rawList.length === 0) return undefined;
 
-    const staticById = new Map(MODELS.map((m) => [m.id, m]));
+      const staticById = new Map(MODELS.map((m) => [m.id, m]));
 
-    const parsed = rawList.reduce<ModelConfig[]>((acc, raw) => {
-      const id = stringValue(raw?.id);
-      if (!id?.startsWith(GEMINI_PREFIX)) return acc;
-      const model = parseRemoteModel(raw, staticById.get(id));
-      if (model) acc.push(model);
-      return acc;
-    }, []);
+      const parsed = rawList.reduce<ModelConfig[]>((acc, raw) => {
+        const id = stringValue(raw?.id);
+        if (!id?.startsWith(GEMINI_PREFIX)) return acc;
+        const model = parseRemoteModel(raw, staticById.get(id));
+        if (model) acc.push(model);
+        return acc;
+      }, []);
 
-    return parsed.length > 0 ? parsed : undefined;
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timer);
+      return parsed.length > 0 ? parsed : undefined;
+    } catch {
+      // Only retry on network errors (timeout, connection refused, etc.).
+      // Non-OK responses (4xx, 5xx) exit immediately above.
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  return undefined;
 }
 
 /**

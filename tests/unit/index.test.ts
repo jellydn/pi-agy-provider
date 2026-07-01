@@ -1,6 +1,25 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DEFAULT_API_BASE, ENV_API_KEY, PROVIDER_NAME } from "../../src/env.js";
 import { MODELS } from "../../src/models.js";
+
+/** Minimal mock of ExtensionAPI capturing registerProvider + on calls. */
+function makeMockPi(): ExtensionAPI & { _captured: { name: string; config: Record<string, unknown> } | undefined; _events: Map<string, unknown> } {
+  const mock = {
+    _captured: undefined as { name: string; config: Record<string, unknown> } | undefined,
+    _events: new Map<string, unknown>(),
+    registerProvider(name: string, config: Record<string, unknown>) {
+      mock._captured = { name, config };
+    },
+    on(event: string, handler: unknown) {
+      mock._events.set(event, handler);
+    },
+  };
+  // The mock object literal doesn't have _captured / _events directly —
+  // they're accessed via closure. We need a type assertion to satisfy
+  // the return type.
+  return mock as any;
+}
 
 describe("provider registration", () => {
   beforeEach(() => {
@@ -12,17 +31,12 @@ describe("provider registration", () => {
   });
 
   it("registers with correct baseUrl, apiKey, and api type", async () => {
-    let captured: { name: string; config: Record<string, unknown> } | undefined;
-    const fakePi = {
-      registerProvider(name: string, config: Record<string, unknown>) {
-        captured = { name, config };
-      },
-      on(_event: string, _handler: unknown) {},
-    };
+    const fakePi = makeMockPi();
 
     const mod = await import("../../src/index.js");
-    await mod.default(fakePi as never);
+    await mod.default(fakePi);
 
+    const captured = fakePi._captured;
     expect(captured).toBeDefined();
     expect(captured!.name).toBe(PROVIDER_NAME);
     expect(captured!.config.baseUrl).toBe(DEFAULT_API_BASE);
@@ -32,18 +46,12 @@ describe("provider registration", () => {
   });
 
   it("registers all static models as fallback when API is unavailable", async () => {
-    let captured: { config: Record<string, unknown> } | undefined;
-    const fakePi = {
-      registerProvider(_name: string, config: Record<string, unknown>) {
-        captured = { config };
-      },
-      on(_event: string, _handler: unknown) {},
-    };
+    const fakePi = makeMockPi();
 
     const mod = await import("../../src/index.js");
-    await mod.default(fakePi as never);
+    await mod.default(fakePi);
 
-    const models = captured!.config.models as Array<Record<string, unknown>>;
+    const models = fakePi._captured!.config.models as Array<Record<string, unknown>>;
     expect(models).toHaveLength(MODELS.length);
     for (let i = 0; i < MODELS.length; i++) {
       expect(models[i].id).toBe(MODELS[i].id);
@@ -58,18 +66,12 @@ describe("provider registration", () => {
   });
 
   it("wires oauth with login, refreshToken, and getApiKey", async () => {
-    let captured: { config: Record<string, unknown> } | undefined;
-    const fakePi = {
-      registerProvider(_name: string, config: Record<string, unknown>) {
-        captured = { config };
-      },
-      on(_event: string, _handler: unknown) {},
-    };
+    const fakePi = makeMockPi();
 
     const mod = await import("../../src/index.js");
-    await mod.default(fakePi as never);
+    await mod.default(fakePi);
 
-    const oauth = captured!.config.oauth as Record<string, unknown>;
+    const oauth = fakePi._captured!.config.oauth as Record<string, unknown>;
     expect(oauth.name).toBe("Google Gemini (agy)");
     expect(typeof oauth.login).toBe("function");
     expect(typeof oauth.refreshToken).toBe("function");
@@ -87,17 +89,11 @@ describe("message_end event registration", () => {
   });
 
   it("registers a message_end event listener", async () => {
-    const registeredEvents: string[] = [];
-    const fakePi = {
-      registerProvider(_name: string, _config: Record<string, unknown>) {},
-      on(event: string, _handler: unknown) {
-        registeredEvents.push(event);
-      },
-    };
+    const fakePi = makeMockPi();
 
     const mod = await import("../../src/index.js");
-    await mod.default(fakePi as never);
+    await mod.default(fakePi);
 
-    expect(registeredEvents).toContain("message_end");
+    expect(fakePi._events.has("message_end")).toBe(true);
   });
 });

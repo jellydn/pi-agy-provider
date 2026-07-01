@@ -2,7 +2,7 @@
 
 ## Identity
 
-pi extension that registers Google Gemini models as a model provider via pi's built-in `openai-completions` streaming. Uses Google's OpenAI-compatible API endpoint. Entry point: `src/index.ts` (default export receiving `ExtensionAPI`).
+pi extension that registers Google Gemini models as a model provider via pi's built-in `openai-completions` streaming. Uses Google's OpenAI-compatible API endpoint. Entry point: `src/index.ts` (default export receiving `ExtensionAPI`). pi discovers it via `package.json` `"pi": { "extensions": ["./src/index.ts"] }`.
 
 ## Commands
 
@@ -10,7 +10,7 @@ pi extension that registers Google Gemini models as a model provider via pi's bu
 | ----------------------- | -------------------------------------------------- |
 | `npm test`              | Unit tests via Vitest                              |
 | `npm run test:watch`    | Watch mode                                         |
-| `npm run test:e2e`      | E2E smoke tests (requires `GEMINI_API_KEY` + `pi`)|
+| `npm run test:e2e`      | E2E smoke tests (requires `GEMINI_API_KEY` + `pi`) |
 | `npm run lint`          | Lint all source/test files with oxlint             |
 | `npm run format`        | Format all source/test files with oxfmt (in-place) |
 | `npm run format:check`  | Check formatting without writing                   |
@@ -38,8 +38,9 @@ pi extension that registers Google Gemini models as a model provider via pi's bu
 ## Testing
 
 - Unit tests in `tests/unit/` use dependency injection (mock `readFile`, `fileExists`, `env`) — no FS or network. `vitest.config.ts` includes `tests/**/*.test.ts`.
+- **Type contract test** at `tests/type/contract.ts` validates the extension function signature compiles — run via `npm run typecheck`.
 - E2E tests (`tests/e2e/smoke.sh`) run `pi --no-extensions -e <provider_path>` with real API key. Requires `pi` globally installed and `GEMINI_API_KEY` set.
-- CI runs unit tests on `push`/`PR` to `main`; E2E only on `workflow_dispatch` with `run_e2e=true`.
+- CI runs lint + format:check only on the `latest / Node 22` matrix cell (not pinned pi version or Node 24). Run them locally before pushing.
 
 ## Install
 
