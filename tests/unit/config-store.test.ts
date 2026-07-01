@@ -105,23 +105,23 @@ describe("resolveAgyOAuthToken", () => {
     expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.token");
   });
 
-  it("extracts agy field (string) from pi auth.json", () => {
+  it("does not extract from pi auth.json — only walks agy files", () => {
     const readFile = (p: string) => {
       if (p.includes("auth.json")) return JSON.stringify({ agy: "gemini_key_from_pi" });
       throw new Error("ENOENT");
     };
     const fileExists = (p: string) => p.includes("auth.json");
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("gemini_key_from_pi");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
   });
 
-  it("extracts agy.access from pi auth.json (OAuth object)", () => {
+  it("does not extract agy.access from pi auth.json — only walks agy files", () => {
     const readFile = (p: string) => {
       if (p.includes("auth.json"))
         return JSON.stringify({ agy: { type: "oauth", access: "oauth_access_token" } });
       throw new Error("ENOENT");
     };
     const fileExists = (p: string) => p.includes("auth.json");
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("oauth_access_token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
   });
 
   it("returns undefined when no credential files exist", () => {
@@ -171,25 +171,20 @@ describe("resolveAgyOAuthToken", () => {
     expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("ya29.fresh");
   });
 
-  it("skips expired oauth_creds.json (epoch ms expiry)", () => {
+  it("skips expired oauth_creds.json and returns undefined with no fallback", () => {
     const readFile = (p: string) => {
       if (p.includes("oauth_creds.json"))
         return JSON.stringify({ access_token: "ya29.expired", expiry_date: 1 });
-      if (p.includes("auth.json")) return JSON.stringify({ agy: "fresh_key" });
       throw new Error("ENOENT");
     };
-    const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("fresh_key");
+    const fileExists = (p: string) => p.includes("oauth_creds.json");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
   });
 
-  it("skips expired agy.access (epoch ms expires)", () => {
-    const readFile = (p: string) => {
-      if (p.includes("auth.json"))
-        return JSON.stringify({ agy: { type: "oauth", access: "ya29.expired", expires: 1 } });
-      throw new Error("ENOENT");
-    };
-    const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  it("skips expired agy.access — auth.json not walked by resolveAgyOAuthToken", () => {
+    // resolveAgyOAuthToken only walks agy files, never auth.json
+    const fileExists = () => false;
+    expect(resolveAgyOAuthToken({ fileExists })).toBeUndefined();
   });
 
   it("accepts token with missing expiry field", () => {

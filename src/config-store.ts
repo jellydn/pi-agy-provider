@@ -160,16 +160,25 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
 /**
  * Extract an OAuth access token from agy's credential stores.
  *
+ * Only walks agy CLI files (~/.gemini/). auth.json is intentionally
+ * excluded — the login flow should discover tokens from agy sources,
+ * not from pi's own previously-saved credentials (which creates an
+ * infinite loop where stale login-saved tokens shadow fresh agy ones).
+ *
  * Checks these locations in order:
  * 1. ~/.gemini/antigravity-cli/antigravity-oauth-token — may be a bare
  *    string (just the token) or a nested JSON object.
  * 2. ~/.gemini/oauth_creds.json — JSON with `access_token` field.
- * 3. ~/.pi/agent/auth.json — pi OAuth store (agy string or {agy: {access}}).
  *
  * @returns The access token string, or undefined if not found.
  */
 export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | undefined {
-  return walkAuthPaths(options, (parsed) => extractCredential(parsed));
+  const home = options.homeDir?.() ?? homedir();
+  const agyPaths = [
+    join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
+    join(home, ".gemini", "oauth_creds.json"),
+  ];
+  return walkAuthPaths({ ...options, authPaths: agyPaths }, (parsed) => extractCredential(parsed));
 }
 
 // ─── API Key Resolution ──────────────────────────────────────────────────
