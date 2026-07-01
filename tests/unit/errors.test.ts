@@ -23,6 +23,12 @@ describe("classifyGeminiError", () => {
     expect(result.type).toBe("invalid_key");
   });
 
+  it("classifies 'unauthenticated' as invalid_key", () => {
+    const result = classifyGeminiError("Request is UNAUTHENTICATED");
+    expect(result.type).toBe("invalid_key");
+    expect(result.message).toBe(GEMINI_ERROR_MESSAGES.invalid_key);
+  });
+
   it("classifies 429 as rate_limited", () => {
     const result = classifyGeminiError("Request failed with status 429");
     expect(result.type).toBe("rate_limited");
