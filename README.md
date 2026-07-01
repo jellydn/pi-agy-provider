@@ -60,12 +60,12 @@ pi -e /path/to/pi-agy-provider --model agy/gemini-3.5-flash
 
 Credentials are resolved in this order:
 
-| Priority | Source | Notes |
-| :------- | :----- | :---- |
-| 1 | `GEMINI_API_KEY` env var | Long-lived; best for extended sessions |
-| 2 | `GOOGLE_API_KEY` env var | Alternate env name used by some Google SDKs |
-| 3 | agy OAuth token | From `~/.gemini/antigravity-cli/antigravity-oauth-token` or `~/.gemini/oauth_creds.json` |
-| 4 | `~/.pi/agent/auth.json` | pi-stored key or OAuth object |
+| Priority | Source                   | Notes                                                                                    |
+| :------- | :----------------------- | :--------------------------------------------------------------------------------------- |
+| 1        | `GEMINI_API_KEY` env var | Long-lived; best for extended sessions                                                   |
+| 2        | `GOOGLE_API_KEY` env var | Alternate env name used by some Google SDKs                                              |
+| 3        | agy OAuth token          | From `~/.gemini/antigravity-cli/antigravity-oauth-token` or `~/.gemini/oauth_creds.json` |
+| 4        | `~/.pi/agent/auth.json`  | pi-stored key or OAuth object                                                            |
 
 ### Option A: agy CLI (recommended)
 
@@ -107,20 +107,20 @@ Switch models in-session: `/model agy/gemini-3.5-flash`
 
 ## Supported models
 
-| Model | Model ID | Context | Max output |
-| :---- | :------- | :------ | :--------- |
-| Gemini 3.5 Flash | `gemini-3.5-flash` | 1M | 65,536 |
-| Gemini 3.1 Pro | `gemini-3.1-pro-preview` | 1M | 65,536 |
+| Model            | Model ID                 | Context | Max output |
+| :--------------- | :----------------------- | :------ | :--------- |
+| Gemini 3.5 Flash | `gemini-3.5-flash`       | 1M      | 65,536     |
+| Gemini 3.1 Pro   | `gemini-3.1-pro-preview` | 1M      | 65,536     |
 
 Model IDs match the Gemini API. In pi, prefix with `agy/` (e.g. `agy/gemini-3.5-flash`).
 
 ## Configuration
 
-| Variable | Default | Purpose |
-| :------- | :------ | :------ |
-| `GEMINI_API_KEY` | — | Primary API key |
-| `GOOGLE_API_KEY` | — | Alternate API key env var |
-| `GEMINI_API_BASE` | `https://generativelanguage.googleapis.com/v1beta/openai` | Override API endpoint |
+| Variable          | Default                                                   | Purpose                   |
+| :---------------- | :-------------------------------------------------------- | :------------------------ |
+| `GEMINI_API_KEY`  | —                                                         | Primary API key           |
+| `GOOGLE_API_KEY`  | —                                                         | Alternate API key env var |
+| `GEMINI_API_BASE` | `https://generativelanguage.googleapis.com/v1beta/openai` | Override API endpoint     |
 
 Pricing for usage tracking follows [Google Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing).
 
