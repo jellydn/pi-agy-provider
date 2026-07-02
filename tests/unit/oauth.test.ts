@@ -1,19 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { login, refreshToken, getApiKey } from "../../src/oauth.js";
-
-// ─── Mock config-store module for login tests ──────────────────────────────
-
-const { mockResolveAgyOAuthToken } = vi.hoisted(() => ({
-  mockResolveAgyOAuthToken: vi.fn(),
-}));
-
-vi.mock("../../src/config-store.js", async () => ({
-  ...(await vi.importActual<typeof import("../../src/config-store.js")>(
-    "../../src/config-store.js",
-  )),
-  resolveAgyOAuthToken: mockResolveAgyOAuthToken,
-}));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -28,69 +15,10 @@ function makeCallbacks(overrides?: {
   } as unknown as OAuthLoginCallbacks;
 }
 
-// ─── login — agy OAuth auto-login path ──────────────────────────────────────
+// ─── login ───────────────────────────────────────────────────────────────────
 
-describe("login — agy OAuth auto-login", () => {
-  beforeEach(() => {
-    // Stub fetch for verifyToken — return 200 so tokens pass verification
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
-  });
-
-  afterEach(() => {
-    mockResolveAgyOAuthToken.mockReset();
-    vi.unstubAllGlobals();
-  });
-
-  it("returns existing agy OAuth token when found and verified", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue("ya29.existing_oauth_token");
-    const callbacks = makeCallbacks();
-
-    const result = await login(callbacks);
-
-    expect(result.access).toBe("ya29.existing_oauth_token");
-    expect(result.refresh).toBe("ya29.existing_oauth_token");
-    expect(result.expires).toBeGreaterThan(Date.now());
-    expect(callbacks.onAuth).not.toHaveBeenCalled();
-  });
-
-  it("falls through to paste when agy token fails verification", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response("Unauthorized", { status: 401 })),
-    );
-    mockResolveAgyOAuthToken.mockReturnValue("ya29.bad_token");
-    const onAuth = vi.fn();
-    const callbacks = makeCallbacks({
-      onAuth,
-      onPrompt: async () => "AIzaSyD_fallback_key_1234567890",
-    });
-
-    const result = await login(callbacks);
-
-    expect(onAuth).toHaveBeenCalledWith({ url: "https://aistudio.google.com/apikey" });
-    expect(result.access).toBe("AIzaSyD_fallback_key_1234567890");
-  });
-
-  it("does not call onPrompt when agy token is found and verified", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue("ya29.token");
-    const onPrompt = vi.fn().mockResolvedValue("");
-    const callbacks = makeCallbacks({ onPrompt });
-
-    await login(callbacks);
-
-    expect(onPrompt).not.toHaveBeenCalled();
-  });
-});
-
-// ─── login — Manual API key paste path ──────────────────────────────────────
-
-describe("login — manual API key paste", () => {
-  afterEach(() => {
-    mockResolveAgyOAuthToken.mockReset();
-  });
-
-  it("opens AI Studio and prompts for API key when no agy credentials", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue(undefined);
+describe("login", () => {
+  it("opens AI Studio and prompts for API key", async () => {
     const onAuth = vi.fn();
     const callbacks = makeCallbacks({
       onAuth,
@@ -101,17 +29,17 @@ describe("login — manual API key paste", () => {
 
     expect(onAuth).toHaveBeenCalledWith({ url: "https://aistudio.google.com/apikey" });
     expect(result.access).toBe("AIzaSyD_authkey_abcdefghijklmnopqrstuvwxyz1234");
+    expect(result.refresh).toBe("AIzaSyD_authkey_abcdefghijklmnopqrstuvwxyz1234");
+    expect(result.expires).toBeGreaterThan(Date.now());
   });
 
   it("throws on empty API key", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue(undefined);
     const callbacks = makeCallbacks({ onPrompt: async () => "" });
 
     await expect(login(callbacks)).rejects.toThrow("No Gemini API key provided");
   });
 
   it("trims whitespace from pasted API key", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue(undefined);
     const callbacks = makeCallbacks({
       onPrompt: async () => "  AIzaSyD_key_with_spaces_12345678  ",
     });
@@ -122,7 +50,6 @@ describe("login — manual API key paste", () => {
   });
 
   it("warns on unusually short API key (< 20 chars)", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue(undefined);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const callbacks = makeCallbacks({ onPrompt: async () => "short_key_123" });
 
@@ -136,7 +63,6 @@ describe("login — manual API key paste", () => {
   });
 
   it("does not warn on API key >= 20 chars", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue(undefined);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const callbacks = makeCallbacks({
       onPrompt: async () => "abcdefghij1234567890",
@@ -149,7 +75,6 @@ describe("login — manual API key paste", () => {
   });
 
   it("removes terminal paste wrappers from pasted key", async () => {
-    mockResolveAgyOAuthToken.mockReturnValue(undefined);
     const esc = String.fromCharCode(27);
     const pastedKey = `${esc}[200~AIzaSyD_paste_key_123456${esc}[201~`;
     const callbacks = makeCallbacks({ onPrompt: async () => pastedKey });
@@ -176,24 +101,24 @@ describe("refreshToken", () => {
     expect(result.refresh).toBe("AIzaSyD_static_key_abc123");
   });
 
-  it("returns agy OAuth credentials as-is (cannot refresh)", async () => {
+  it("returns credentials as-is even when expired", async () => {
     const cred: OAuthCredentials = {
-      access: "ya29.oauth_token",
-      refresh: "ya29.oauth_token",
-      expires: Date.now() + 30 * 60 * 1000,
+      access: "AIzaSyD_expired_key",
+      refresh: "AIzaSyD_expired_key",
+      expires: Date.now() - 1000,
     };
 
     const result = await refreshToken(cred);
 
-    expect(result.access).toBe("ya29.oauth_token");
+    expect(result.access).toBe("AIzaSyD_expired_key");
     expect(result).toEqual(cred);
   });
 
-  it("warns when agy OAuth token is expired", async () => {
+  it("warns when credentials are expired", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const cred: OAuthCredentials = {
-      access: "ya29.expired_token",
-      refresh: "ya29.expired_token",
+      access: "AIzaSyD_expired_key",
+      refresh: "AIzaSyD_expired_key",
       expires: Date.now() - 1000,
     };
 
@@ -210,15 +135,6 @@ describe("refreshToken", () => {
 
 describe("getApiKey", () => {
   it("returns the access token from credentials", () => {
-    const cred: OAuthCredentials = {
-      access: "ya29.token",
-      refresh: "ya29.token",
-      expires: Date.now() + 3600000,
-    };
-    expect(getApiKey(cred)).toBe("ya29.token");
-  });
-
-  it("returns static API key from credentials", () => {
     const cred: OAuthCredentials = {
       access: "AIzaSyD_static_key",
       refresh: "AIzaSyD_static_key",
