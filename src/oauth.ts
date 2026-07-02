@@ -14,7 +14,7 @@
  */
 
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
-import { sanitizeApiKey, API_KEY_URL } from "./env.js";
+import { sanitizeApiKey, API_KEY_URL, resolveApiBase } from "./env.js";
 import { resolveAgyOAuthToken } from "./config-store.js";
 
 /** Lifetime for static API key credentials (10 years — effectively permanent). */
@@ -26,6 +26,33 @@ const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
  * to avoid mid-request expiration.
  */
 const AGY_OAUTH_LIFETIME_MS = 55 * 60 * 1000;
+
+/** Timeout for token verification during login (ms). */
+const TOKEN_VERIFY_TIMEOUT_MS = 5_000;
+
+// ─── Token verification ─────────────────────────────────────────────────────
+
+/**
+ * Verify that a token works with the Gemini API endpoint.
+ * Makes a quick call to the models list endpoint — if it succeeds,
+ * the token is valid for API use.
+ */
+async function verifyToken(token: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TOKEN_VERIFY_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${resolveApiBase()}/models`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ─── Static API key helpers ──────────────────────────────────────────────────
 
@@ -53,15 +80,18 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
   // Try to reuse existing agy CLI OAuth credentials
   const agyToken = resolveAgyOAuthToken();
   if (agyToken) {
-    // agy OAuth tokens are short-lived access tokens. We use them directly
-    // as the Bearer token. The refresh token is the same token (we can't
-    // refresh agy OAuth tokens — the user would need to re-run `agy` login).
-    // Treat as expiring in ~1 hour, same as agy's token lifetime.
-    return {
-      access: agyToken,
-      refresh: agyToken,
-      expires: Date.now() + AGY_OAUTH_LIFETIME_MS,
-    };
+    // Verify the token actually works with the Gemini API endpoint.
+    // Some OAuth tokens (e.g. from oauth_creds.json) may be valid
+    // OAuth tokens but not accepted by the Gemini OpenAI-compatible
+    // endpoint. If verification fails, fall through to manual paste.
+    const valid = await verifyToken(agyToken);
+    if (valid) {
+      return {
+        access: agyToken,
+        refresh: agyToken,
+        expires: Date.now() + AGY_OAUTH_LIFETIME_MS,
+      };
+    }
   }
 
   // Fall back to manual API key paste

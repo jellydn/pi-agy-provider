@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { login, refreshToken, getApiKey } from "../../src/oauth.js";
 
@@ -31,11 +31,17 @@ function makeCallbacks(overrides?: {
 // ─── login — agy OAuth auto-login path ──────────────────────────────────────
 
 describe("login — agy OAuth auto-login", () => {
-  afterEach(() => {
-    mockResolveAgyOAuthToken.mockReset();
+  beforeEach(() => {
+    // Stub fetch for verifyToken — return 200 so tokens pass verification
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
   });
 
-  it("returns existing agy OAuth token when found", async () => {
+  afterEach(() => {
+    mockResolveAgyOAuthToken.mockReset();
+    vi.unstubAllGlobals();
+  });
+
+  it("returns existing agy OAuth token when found and verified", async () => {
     mockResolveAgyOAuthToken.mockReturnValue("ya29.existing_oauth_token");
     const callbacks = makeCallbacks();
 
@@ -47,7 +53,25 @@ describe("login — agy OAuth auto-login", () => {
     expect(callbacks.onAuth).not.toHaveBeenCalled();
   });
 
-  it("does not call onPrompt when agy token is found", async () => {
+  it("falls through to paste when agy token fails verification", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("Unauthorized", { status: 401 })),
+    );
+    mockResolveAgyOAuthToken.mockReturnValue("ya29.bad_token");
+    const onAuth = vi.fn();
+    const callbacks = makeCallbacks({
+      onAuth,
+      onPrompt: async () => "AIzaSyD_fallback_key_1234567890",
+    });
+
+    const result = await login(callbacks);
+
+    expect(onAuth).toHaveBeenCalledWith({ url: "https://aistudio.google.com/apikey" });
+    expect(result.access).toBe("AIzaSyD_fallback_key_1234567890");
+  });
+
+  it("does not call onPrompt when agy token is found and verified", async () => {
     mockResolveAgyOAuthToken.mockReturnValue("ya29.token");
     const onPrompt = vi.fn().mockResolvedValue("");
     const callbacks = makeCallbacks({ onPrompt });
