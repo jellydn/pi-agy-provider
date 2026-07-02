@@ -45,9 +45,10 @@ export function handleGeminiError(
 
   logger.debug("Classified Gemini error", { type, rawMessage: msg.errorMessage });
 
+  const message = `[agy] ${friendlyMessage}`;
   if (ctx.hasUI) {
     ctx.ui.notify(friendlyMessage, "error");
   } else {
-    console.error(`[agy] ${friendlyMessage}`);
+    logger.error(message);
   }
 }

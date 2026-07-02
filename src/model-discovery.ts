@@ -15,6 +15,7 @@ import {
   type ModelConfig,
 } from "./model-catalog.js";
 import { logger } from "./logger.js";
+import { retryFetch } from "./retry.js";
 
 // ─── Discovery Configuration ────────────────────────────────────────────────
 
@@ -108,25 +109,6 @@ export interface RemoteModelsOptions {
 
 // ─── Retry Helpers ────────────────────────────────────────────────────────
 
-/**
- * Check if an error is a transient network failure worth retrying.
- * Includes DNS/connection errors and timeout aborts — excludes parse
- * errors, type errors, and other application-level failures.
- */
-function isNetworkError(err: unknown): boolean {
-  if (err instanceof TypeError) return true; // connection refused, DNS failure
-  if (err instanceof DOMException) return err.name === "AbortError"; // timeout
-  return false;
-}
-
-/**
- * Check if an HTTP status code represents a transient server error.
- * 5xx errors (except 501 Not Implemented) are typically transient.
- */
-function isTransientHttpError(status: number): boolean {
-  return status === 502 || status === 503 || status === 504;
-}
-
 // ─── Remote Fetch ───────────────────────────────────────────────────────────
 
 /**
@@ -150,60 +132,36 @@ export async function fetchRemoteModels(
 
   if (!apiKey || !fetchFn) return undefined;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const response = await retryFetch(`${apiBase}${MODELS_ENDPOINT}`, {
+    fetch: fetchFn,
+    timeoutMs,
+    maxRetries,
+    retryDelayMs,
+    init: { headers: { Authorization: `Bearer ${apiKey}` } },
+  });
 
-    try {
-      const response = await fetchFn(`${apiBase}${MODELS_ENDPOINT}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: controller.signal,
-      });
+  if (!response?.ok) return undefined;
 
-      if (!response.ok) {
-        // Retry on transient 5xx errors; 4xx and permanent 5xx are terminal
-        if (isTransientHttpError(response.status) && attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt));
-          continue;
-        }
-        return undefined;
-      }
+  const json: unknown = await response.json();
+  const rawList: RawModelEntry[] = Array.isArray(json)
+    ? json
+    : isRecord(json) && Array.isArray(json.data)
+      ? (json.data as RawModelEntry[])
+      : [];
 
-      const json: unknown = await response.json();
-      const rawList: RawModelEntry[] = Array.isArray(json)
-        ? json
-        : isRecord(json) && Array.isArray(json.data)
-          ? (json.data as RawModelEntry[])
-          : [];
+  if (rawList.length === 0) return undefined;
 
-      if (rawList.length === 0) return undefined;
+  const staticById = new Map(MODELS.map((m) => [m.id, m]));
 
-      const staticById = new Map(MODELS.map((m) => [m.id, m]));
+  const parsed = rawList.reduce<ModelConfig[]>((acc, raw) => {
+    const id = stringValue(raw?.id);
+    if (!id?.startsWith(GEMINI_PREFIX)) return acc;
+    const model = parseRemoteModel(raw, staticById.get(id));
+    if (model) acc.push(model);
+    return acc;
+  }, []);
 
-      const parsed = rawList.reduce<ModelConfig[]>((acc, raw) => {
-        const id = stringValue(raw?.id);
-        if (!id?.startsWith(GEMINI_PREFIX)) return acc;
-        const model = parseRemoteModel(raw, staticById.get(id));
-        if (model) acc.push(model);
-        return acc;
-      }, []);
-
-      return parsed.length > 0 ? parsed : undefined;
-    } catch (err) {
-      // Only retry on transient network errors (timeout, connection
-      // refused, DNS failure). Parse errors and validation failures
-      // should not retry — the response body won't change.
-      if (isNetworkError(err) && attempt < maxRetries) {
-        await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** attempt));
-        continue;
-      }
-      return undefined;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  return undefined;
+  return parsed.length > 0 ? parsed : undefined;
 }
 
 // ─── Model Resolution ───────────────────────────────────────────────────────

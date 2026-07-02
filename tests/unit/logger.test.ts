@@ -4,14 +4,23 @@ import { createLogger } from "../../src/logger.js";
 // ─── createLogger — adapter selection ────────────────────────────────────────
 
 describe("createLogger", () => {
-  it("suppresses debug/info when DEBUG does not include 'agy'", () => {
+  it("suppresses debug/info but logs warn/error when DEBUG is absent", () => {
+    const spyWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const spyError = vi.spyOn(console, "error").mockImplementation(() => {});
+
     const log = createLogger({ DEBUG: "other" });
-    // No-op for debug/info — should not throw and should not write to console
     expect(() => log.debug("msg")).not.toThrow();
     expect(() => log.info("msg")).not.toThrow();
-    // warn and error always log
-    expect(() => log.warn("msg")).not.toThrow();
-    expect(() => log.error("msg")).not.toThrow();
+
+    log.warn("warn msg");
+    log.error("error msg");
+
+    expect(spyWarn).toHaveBeenCalledTimes(1);
+    expect(spyError).toHaveBeenCalledTimes(1);
+    expect(spyWarn.mock.calls[0][0]).toContain("[agy] [WARN]");
+
+    spyWarn.mockRestore();
+    spyError.mockRestore();
   });
 
   it("suppresses debug/info when DEBUG is empty", () => {

@@ -247,14 +247,10 @@ export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | und
 
   // 2. File-based sources (legacy agy versions)
   const home = options.homeDir?.() ?? homedir();
-  const agyPaths = [
-    join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
-    join(home, ".gemini", "oauth_creds.json"),
-  ];
-  return walkAuthPaths({ ...options, authPaths: agyPaths }, (parsed) => {
-    const result = credentialChain.parse(parsed);
-    return result?.token;
-  });
+  return walkAuthPaths(
+    { ...options, authPaths: defaultAuthPaths(home) },
+    (parsed) => credentialChain.parse(parsed)?.token,
+  );
 }
 
 // ─── API Key Resolution ──────────────────────────────────────────────────

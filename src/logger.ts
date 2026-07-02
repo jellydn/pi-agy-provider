@@ -13,9 +13,6 @@
 
 // ─── Logger Interface ───────────────────────────────────────────────────────
 
-/** Log levels supported by the Logger interface. */
-export type LogLevel = "debug" | "info" | "warn" | "error";
-
 /**
  * Structured logging interface.
  *

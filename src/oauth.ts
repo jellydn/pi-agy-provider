@@ -87,10 +87,7 @@ export async function login(
   // Gemini API keys are opaque strings, typically 30+ chars. Warn on
   // suspiciously short input.
   if (apiKey.length < 20) {
-    console.warn(
-      `[agy] Warning: API key looks unusually short (${apiKey.length} chars). ` +
-        "Verify you copied the full key from aistudio.google.com/apikey.",
-    );
+    logger.warn("API key looks unusually short", { length: apiKey.length });
   }
 
   return credentialsFromApiKey(apiKey);
@@ -105,9 +102,7 @@ export async function login(
  */
 export async function refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
   if (credentials.expires <= Date.now()) {
-    console.warn(
-      "[agy] Credentials have expired. Run `pi /login` to re-authenticate or paste a new API key.",
-    );
+    logger.warn("Credentials have expired — run `pi /login` to re-authenticate");
   }
   return credentials;
 }

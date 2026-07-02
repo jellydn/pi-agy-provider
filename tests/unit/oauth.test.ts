@@ -162,7 +162,7 @@ describe("login — manual API key flow", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0][0]).toContain("[agy]");
     expect(warnSpy.mock.calls[0][0]).toContain("unusually short");
-    expect(warnSpy.mock.calls[0][0]).toContain("13 chars");
+    expect(warnSpy.mock.calls[0][0]).toContain('"length":13');
     warnSpy.mockRestore();
   });
 
@@ -231,6 +231,7 @@ describe("refreshToken", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0][0]).toContain("[agy]");
     expect(warnSpy.mock.calls[0][0]).toContain("expired");
+    expect(warnSpy.mock.calls[0][0]).toContain("pi /login");
     warnSpy.mockRestore();
   });
 });
