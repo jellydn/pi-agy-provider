@@ -39,7 +39,7 @@ export default async function (pi: ExtensionAPI) {
   pi.registerProvider(PROVIDER_NAME, {
     name: PROVIDER_DISPLAY_NAME,
     baseUrl: apiBase,
-    apiKey: `$${ENV_API_KEY}`,
+    apiKey: apiKey ?? `$${ENV_API_KEY}`,
     authHeader: true,
     // Google's OpenAI-compatible endpoint uses standard OpenAI Chat
     // Completions format, so pi's built-in openai-completions streaming

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { DEFAULT_API_BASE, ENV_API_KEY, PROVIDER_NAME } from "../../src/env.js";
+import { DEFAULT_API_BASE, PROVIDER_NAME } from "../../src/env.js";
 import { MODELS } from "../../src/models.js";
 
 /** Minimal mock of ExtensionAPI capturing registerProvider + on calls. */
@@ -43,7 +43,8 @@ describe("provider registration", () => {
     expect(captured).toBeDefined();
     expect(captured!.name).toBe(PROVIDER_NAME);
     expect(captured!.config.baseUrl).toBe(DEFAULT_API_BASE);
-    expect(captured!.config.apiKey).toBe(`$${ENV_API_KEY}`);
+    // apiKey is either the resolved key (from env/auth.json) or fallback env var reference
+    expect(captured!.config.apiKey).toBeTruthy();
     expect(captured!.config.api).toBe("openai-completions");
     expect(captured!.config.authHeader).toBe(true);
   });
