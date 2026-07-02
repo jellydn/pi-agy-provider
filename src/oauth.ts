@@ -13,7 +13,7 @@
 
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { resolveAgyOAuthToken } from "./config-store.js";
-import { sanitizeApiKey, API_KEY_URL, resolveApiBase } from "./env.js";
+import { sanitizeApiKey, API_KEY_URL, resolveApiBase, ENV_API_KEY } from "./env.js";
 
 /** Lifetime for static API key credentials (10 years — effectively permanent). */
 const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
@@ -130,7 +130,10 @@ export async function refreshToken(credentials: OAuthCredentials): Promise<OAuth
 
 /**
  * Returns the access token (API key) from credentials.
+ * Also syncs process.env so pi's `$GEMINI_API_KEY` interpolation
+ * picks up credential changes from `/login` without a restart.
  */
 export function getApiKey(credentials: OAuthCredentials): string {
+  process.env[ENV_API_KEY] = credentials.access;
   return credentials.access;
 }

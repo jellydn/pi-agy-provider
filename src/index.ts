@@ -31,15 +31,25 @@ import { getApiKey as oauthGetApiKey, login, refreshToken } from "./oauth.js";
 export default async function (pi: ExtensionAPI) {
   const apiBase = resolveApiBase();
 
+  // Resolve API key from all sources (env vars, auth.json, agy files).
+  // Seed process.env so pi's `$GEMINI_API_KEY` interpolation picks it up
+  // per-request — the user's explicit env var always takes priority.
+  const resolvedKey = resolveApiKey();
+  if (resolvedKey && !process.env[ENV_API_KEY]) {
+    process.env[ENV_API_KEY] = resolvedKey;
+  }
+
   // Attempt dynamic model discovery from the Gemini API. Falls back to the
   // static MODELS array on any error (network failure, 404, parse error).
-  const apiKey = resolveApiKey();
-  const models = await resolveModels(apiKey, { apiBase });
+  const models = await resolveModels(resolvedKey, { apiBase });
 
   pi.registerProvider(PROVIDER_NAME, {
     name: PROVIDER_DISPLAY_NAME,
     baseUrl: apiBase,
-    apiKey: apiKey ?? `$${ENV_API_KEY}`,
+    // `$GEMINI_API_KEY` is resolved by pi lazily per-request from
+    // process.env, so credential changes (env var updates, /login) are
+    // picked up without restarting pi.
+    apiKey: `$${ENV_API_KEY}`,
     authHeader: true,
     // Google's OpenAI-compatible endpoint uses standard OpenAI Chat
     // Completions format, so pi's built-in openai-completions streaming
