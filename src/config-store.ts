@@ -3,7 +3,7 @@
  * and full API key resolution chain.
  *
  * Owns all credential resolution: navigating and parsing credential stores
- * from the agy CLI (~/.gemini/) and pi (~/.pi/agent/auth.json), extracting
+ * from the agy CLI (~/.gemini/ files and macOS Keychain), extracting
  * OAuth tokens, and resolving API keys from env vars.
  *
  * @module agy-config-store
@@ -42,16 +42,14 @@ export interface AuthKeyOptions {
 /**
  * Default auth file paths checked in order.
  *
- * pi auth.json is checked first (user's /login credentials take priority),
- * then agy CLI files fallback.
+ * Only agy-native credential files — the macOS Keychain is the primary
+ * source (checked separately via resolveKeychainToken()).
  *
- * 1. ~/.pi/agent/auth.json — pi's OAuth credentials store
- * 2. ~/.gemini/antigravity-cli/antigravity-oauth-token — agy CLI OAuth token
- * 3. ~/.gemini/oauth_creds.json — Gemini CLI OAuth credentials
+ * 1. ~/.gemini/antigravity-cli/antigravity-oauth-token — agy CLI OAuth token
+ * 2. ~/.gemini/oauth_creds.json — Gemini CLI OAuth credentials
  */
 export function defaultAuthPaths(home: string): string[] {
   return [
-    join(home, ".pi", "agent", "auth.json"),
     join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
     join(home, ".gemini", "oauth_creds.json"),
   ];
@@ -135,9 +133,6 @@ function isExpired(expiryTime: unknown): boolean {
  * {agy: string | {access: string}}.
  *
  * Expired tokens are skipped — the walk continues to the next file.
- *
- * Does NOT handle the `apiKey` field — callers that need apiKey
- * extraction should check it before delegating to this function.
  */
 function extractCredential(parsed: Record<string, unknown> | string): string | undefined {
   // Bare string token (antigravity-oauth-token file)
@@ -155,7 +150,7 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
     if (nestedToken && !isExpired(parsed.token.expiry)) return nestedToken;
   }
 
-  // pi auth.json / agy format: {agy: "..."} or {agy: {access: "..."}}
+  // agy format: {agy: "..."} or {agy: {access: "..."}}
   const agyField = parsed.agy;
   if (typeof agyField === "string") return agyField;
   if (isRecord(agyField)) {
@@ -246,11 +241,10 @@ export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | und
  * Walks credential files exactly once — no duplicate file I/O.
  *
  * Priority: provided key → GEMINI_API_KEY env var → GOOGLE_API_KEY env var
- *           → file-based credentials (auth.json, then agy files)
+ *           → file-based credentials (agy-native files)
  *
  * Auth sources checked:
  * - GEMINI_API_KEY / GOOGLE_API_KEY env vars
- * - ~/.pi/agent/auth.json (pi OAuth format: {apiKey: "..."}, {agy: "..."}, or {agy: {access: "..."}})
  * - ~/.gemini/antigravity-cli/antigravity-oauth-token (agy CLI OAuth)
  * - ~/.gemini/oauth_creds.json (Gemini CLI OAuth, has access_token field)
  */
@@ -264,12 +258,5 @@ export function resolveApiKey(
   if (env[ENV_API_KEY]) return env[ENV_API_KEY];
   if (env[ENV_API_KEY_ALT]) return env[ENV_API_KEY_ALT];
 
-  // Single file walk — checks apiKey first, then delegates to extractCredential
-  return walkAuthPaths(options, (parsed) => {
-    if (isRecord(parsed)) {
-      const apiKey = stringValue(parsed.apiKey);
-      if (apiKey) return apiKey;
-    }
-    return extractCredential(parsed);
-  });
+  return walkAuthPaths(options, (parsed) => extractCredential(parsed));
 }

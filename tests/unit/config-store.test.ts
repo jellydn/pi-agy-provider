@@ -7,13 +7,11 @@ import {
 } from "../../src/config-store.js";
 
 describe("defaultAuthPaths", () => {
-  it("includes pi auth.json first, then agy files", () => {
+  it("includes only agy-native credential files (no pi auth.json)", () => {
     const paths = defaultAuthPaths("/home/user");
-    // auth.json takes priority (user's /login credentials)
-    expect(paths[0]).toBe("/home/user/.pi/agent/auth.json");
     expect(paths).toContain("/home/user/.gemini/antigravity-cli/antigravity-oauth-token");
     expect(paths).toContain("/home/user/.gemini/oauth_creds.json");
-    expect(paths).toHaveLength(3);
+    expect(paths).toHaveLength(2);
   });
 });
 
@@ -302,30 +300,12 @@ describe("resolveApiKey", () => {
     expect(resolveApiKey(undefined, { env })).toBe("AIza_google");
   });
 
-  it("extracts apiKey from auth.json (first file checked)", () => {
+  it("skips expired nested token and falls through to next file", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({ apiKey: "AIza_key_from_auth" });
-      throw new Error("ENOENT");
-    };
-    const fileExists = (p: string) => p.includes("auth.json");
-    expect(resolveApiKey(undefined, { readFile, fileExists, env: {} })).toBe("AIza_key_from_auth");
-  });
-
-  it("extracts agy.access from auth.json", () => {
-    const futureExpires = Date.now() + 86_400_000;
-    const readFile = (p: string) => {
-      if (p.includes("auth.json"))
-        return JSON.stringify({ agy: { access: "AIza_agy_access", expires: futureExpires } });
-      throw new Error("ENOENT");
-    };
-    const fileExists = (p: string) => p.includes("auth.json");
-    expect(resolveApiKey(undefined, { readFile, fileExists, env: {} })).toBe("AIza_agy_access");
-  });
-
-  it("skips expired agy.access and falls through to next file", () => {
-    const readFile = (p: string) => {
-      if (p.includes("auth.json"))
-        return JSON.stringify({ agy: { access: "dead_token", expires: 1 } });
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: { access_token: "dead_nested", expiry: "2020-01-01T00:00:00Z" },
+        });
       if (p.includes("oauth_creds.json"))
         return JSON.stringify({
           access_token: "AIza_fresh",
@@ -339,7 +319,6 @@ describe("resolveApiKey", () => {
 
   it("skips expired oauth_creds token and continues walk", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({});
       if (p.includes("oauth_creds.json"))
         return JSON.stringify({ access_token: "dead_oauth", expiry_date: 1 });
       if (p.includes("antigravity-oauth-token")) return "AIza_bare";
@@ -351,7 +330,6 @@ describe("resolveApiKey", () => {
 
   it("accepts token with missing expiry field", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({});
       if (p.includes("oauth_creds.json")) return JSON.stringify({ access_token: "AIza_no_expiry" });
       throw new Error("ENOENT");
     };
@@ -362,7 +340,6 @@ describe("resolveApiKey", () => {
   it("accepts token with valid future expiry", () => {
     const futureExpiry = Date.now() + 86_400_000;
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({});
       if (p.includes("oauth_creds.json"))
         return JSON.stringify({ access_token: "AIza_future", expiry_date: futureExpiry });
       throw new Error("ENOENT");
@@ -373,7 +350,6 @@ describe("resolveApiKey", () => {
 
   it("extracts nested token.access_token from agy oauth file", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({});
       if (p.includes("antigravity-oauth-token"))
         return JSON.stringify({
           token: { access_token: "AIza_nested", expiry: "2099-01-01T00:00:00.000Z" },
@@ -386,7 +362,6 @@ describe("resolveApiKey", () => {
 
   it("handles bare string token from antigravity-oauth-token", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({});
       if (p.includes("antigravity-oauth-token")) return "AIza_bare_string";
       throw new Error("ENOENT");
     };

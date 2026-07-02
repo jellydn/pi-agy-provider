@@ -5,7 +5,7 @@ import { fetchRemoteModels, resolveModels, MODELS } from "../../src/models.js";
 // ─── Credential resolution pipeline (config-store → auth) ───────────────────
 
 describe("credential resolution pipeline", () => {
-  it("resolves key through full chain: env → agy file → pi auth.json", () => {
+  it("resolves key through full chain: env → agy file", () => {
     // GEMINI_API_KEY wins over everything
     const result = resolveApiKey(undefined, {
       env: { GEMINI_API_KEY: "env_key_wins" },
@@ -25,13 +25,13 @@ describe("credential resolution pipeline", () => {
     expect(result).toBe("ya29.bare_oauth");
   });
 
-  it("falls through all files to auth.json agy.access field", () => {
+  it("falls through all files to antigravity-oauth-token agy.access field", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json"))
+      if (p.includes("antigravity-oauth-token"))
         return JSON.stringify({ agy: { type: "oauth", access: "deeply_nested_key" } });
       throw new Error("ENOENT");
     };
-    const fileExists = (p: string) => p.includes("auth.json");
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
     const result = resolveApiKey(undefined, { readFile, fileExists });
     expect(result).toBe("deeply_nested_key");
   });

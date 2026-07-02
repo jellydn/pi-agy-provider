@@ -42,31 +42,22 @@ describe("resolveApiKey", () => {
     expect(resolveApiKey(undefined, { readFile, fileExists })).toBe("ya29.creds");
   });
 
-  it("falls back to auth.json with apiKey field", () => {
+  it("extracts agy string field from credential file", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({ apiKey: "gemini_from_file" });
+      if (p.includes("antigravity-oauth-token")) return JSON.stringify({ agy: "agy_string_key" });
       throw new Error("ENOENT");
     };
-    const fileExists = (p: string) => p.includes("auth.json");
-    expect(resolveApiKey(undefined, { readFile, fileExists })).toBe("gemini_from_file");
-  });
-
-  it("falls back to auth.json with agy string field", () => {
-    const readFile = (p: string) => {
-      if (p.includes("auth.json")) return JSON.stringify({ agy: "agy_string_key" });
-      throw new Error("ENOENT");
-    };
-    const fileExists = (p: string) => p.includes("auth.json");
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
     expect(resolveApiKey(undefined, { readFile, fileExists })).toBe("agy_string_key");
   });
 
-  it("falls back to auth.json with agy.access OAuth object", () => {
+  it("extracts agy.access OAuth object from credential file", () => {
     const readFile = (p: string) => {
-      if (p.includes("auth.json"))
+      if (p.includes("oauth_creds.json"))
         return JSON.stringify({ agy: { type: "oauth", access: "agy_oauth_access" } });
       throw new Error("ENOENT");
     };
-    const fileExists = (p: string) => p.includes("auth.json");
+    const fileExists = (p: string) => p.includes("oauth_creds.json");
     expect(resolveApiKey(undefined, { readFile, fileExists })).toBe("agy_oauth_access");
   });
 
@@ -90,7 +81,7 @@ describe("resolveApiKey", () => {
     expect(resolveApiKey(undefined, { readFile, fileExists })).toBeUndefined();
   });
 
-  it("skips auth.json with no relevant fields", () => {
+  it("skips credential file with no relevant fields", () => {
     const readFile = () => JSON.stringify({ other: "value" });
     const fileExists = () => true;
     expect(resolveApiKey(undefined, { readFile, fileExists })).toBeUndefined();
