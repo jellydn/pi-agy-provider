@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { login, refreshToken, getApiKey } from "../../src/oauth.js";
+import { createTokenVerifier, type TokenVerifier } from "../../src/oauth-verifier.js";
 import { ENV_API_KEY } from "../../src/env.js";
 
 // ─── Mock resolveAgyOAuthToken from config-store ──────────────────────────
@@ -29,6 +30,24 @@ function makeCallbacks(overrides?: {
   } as unknown as OAuthLoginCallbacks;
 }
 
+/** Create a verifier that returns the given result without network calls. */
+function mockVerifier(ok: boolean): TokenVerifier {
+  return createTokenVerifier({
+    fetch: vi.fn().mockResolvedValue({ ok }),
+    timeoutMs: 100,
+  });
+}
+
+/** Create a verifier that throws on every attempt (simulating network failure). */
+function failingVerifier(): TokenVerifier {
+  return createTokenVerifier({
+    fetch: vi.fn().mockRejectedValue(new TypeError("ECONNREFUSED")),
+    timeoutMs: 100,
+    retries: 1,
+    retryDelayMs: 1,
+  });
+}
+
 // ─── login — agy OAuth auto-login ────────────────────────────────────────────
 
 describe("login — agy OAuth auto-login", () => {
@@ -41,14 +60,11 @@ describe("login — agy OAuth auto-login", () => {
     const token = "AQ_test_token_abcdefghijklmnopqrstuvwxyz";
     mockResolveAgyOAuthToken.mockReturnValue(token);
 
-    // Stub fetch to simulate a successful token verification
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-
     const onAuth = vi.fn();
     const onPrompt = vi.fn();
     const callbacks = makeCallbacks({ onAuth, onPrompt });
 
-    const result = await login(callbacks);
+    const result = await login(callbacks, mockVerifier(true));
 
     // Should return the token immediately, no user interaction
     expect(result.access).toBe(token);
@@ -61,16 +77,13 @@ describe("login — agy OAuth auto-login", () => {
     const token = "dead_token";
     mockResolveAgyOAuthToken.mockReturnValue(token);
 
-    // Stub fetch to simulate failed token verification
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
-
     const onAuth = vi.fn();
     const callbacks = makeCallbacks({
       onAuth,
       onPrompt: async () => "AIzaSyD_fallback_key_12345678901234567890",
     });
 
-    const result = await login(callbacks);
+    const result = await login(callbacks, mockVerifier(false));
 
     // Should fall through to the manual API key flow
     expect(result.access).toBe("AIzaSyD_fallback_key_12345678901234567890");
@@ -79,12 +92,9 @@ describe("login — agy OAuth auto-login", () => {
     });
   });
 
-  it("falls back to manual prompt when verifyToken fetch throws", async () => {
+  it("falls back to manual prompt when verify throws (retries exhausted)", async () => {
     const token = "network_error_token";
     mockResolveAgyOAuthToken.mockReturnValue(token);
-
-    // Stub fetch to throw (network error)
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
 
     const onAuth = vi.fn();
     const callbacks = makeCallbacks({
@@ -92,7 +102,7 @@ describe("login — agy OAuth auto-login", () => {
       onPrompt: async () => "AIzaSyD_after_error_key_12345678901234",
     });
 
-    const result = await login(callbacks);
+    const result = await login(callbacks, failingVerifier());
 
     expect(result.access).toBe("AIzaSyD_after_error_key_12345678901234");
     expect(onAuth).toHaveBeenCalled();

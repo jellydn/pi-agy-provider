@@ -13,7 +13,9 @@
 
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { resolveAgyOAuthToken } from "./config-store.js";
-import { sanitizeApiKey, API_KEY_URL, resolveApiBase, ENV_API_KEY } from "./env.js";
+import { sanitizeApiKey, API_KEY_URL, ENV_API_KEY } from "./env.js";
+import { defaultVerifier, type TokenVerifier } from "./oauth-verifier.js";
+import { logger } from "./logger.js";
 
 /** Lifetime for static API key credentials (10 years — effectively permanent). */
 const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
@@ -21,11 +23,12 @@ const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
 /**
  * Lifetime assigned to agy OAuth tokens (55 minutes — safety buffer
  * under the typical ~1 hour Google OAuth expiry).
+ *
+ * Used as the expires value when a non-expired agy token is verified
+ * against the Gemini API. The actual token may expire earlier if the agy
+ * CLI session ends; this is a best-estimate.
  */
 const AGY_OAUTH_LIFETIME_MS = 55 * 60 * 1000;
-
-/** Timeout for token verification API calls (5 seconds). */
-const TOKEN_VERIFY_TIMEOUT_MS = 5_000;
 
 // ─── Static API key helpers ──────────────────────────────────────────────────
 
@@ -37,47 +40,28 @@ function credentialsFromApiKey(apiKey: string): OAuthCredentials {
   };
 }
 
-// ─── Token verification ──────────────────────────────────────────────────────
-
-/**
- * Verify that an OAuth token is accepted by the Gemini API.
- *
- * Makes a quick GET to the /models endpoint with Bearer auth. Returns
- * true if the API accepts the token (HTTP 2xx), false otherwise.
- */
-async function verifyToken(token: string): Promise<boolean> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TOKEN_VERIFY_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(`${resolveApiBase()}/models`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    });
-    return response.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 // ─── Login flow ─────────────────────────────────────────────────────────────
 
 /**
  * Start the Google Gemini login flow.
  *
- * First tries to reuse an existing agy CLI OAuth token. If found and
- * verified against the Gemini API, returns it immediately (no user
- * interaction needed). Otherwise falls back to the manual API key flow:
- * opens Google AI Studio and prompts the user to paste a key.
+ * First tries to reuse an existing agy CLI OAuth token via the
+ * TokenVerifier (with retry for transient network errors). If the
+ * token is verified, returns it immediately. Otherwise falls back
+ * to the manual API key flow.
+ *
+ * The verifier is injectable via the second parameter for testing.
  */
-export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
+export async function login(
+  callbacks: OAuthLoginCallbacks,
+  verifier: TokenVerifier = defaultVerifier,
+): Promise<OAuthCredentials> {
   // 1. Try to reuse agy CLI OAuth credentials
   const agyToken = resolveAgyOAuthToken();
   if (agyToken) {
-    const isVerified = await verifyToken(agyToken);
+    const isVerified = await verifier.verify(agyToken);
     if (isVerified) {
+      logger.debug("agy OAuth token verified, auto-login succeeded");
       return {
         access: agyToken,
         refresh: agyToken,

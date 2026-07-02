@@ -22,6 +22,7 @@ import {
 } from "./credential-parsers.js";
 import { isRecord, stringValue } from "./utils.js";
 import { ENV_API_KEY, ENV_API_KEY_ALT } from "./env.js";
+import { logger } from "./logger.js";
 
 // ─── Options ────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ export function walkAuthPaths<T>(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (!msg.includes("ENOENT") && !msg.includes("not found")) {
-        console.warn(`[agy] Warning: failed to read auth file ${authPath}: ${msg}`);
+        logger.warn(`Failed to read auth file ${authPath}`, { error: msg });
       }
     }
   }
@@ -239,7 +240,10 @@ export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | und
     "keychainToken" in options
       ? (options.keychainToken ?? undefined)
       : resolveKeychainToken(options.keychainOptions);
-  if (kcToken) return kcToken;
+  if (kcToken) {
+    logger.debug("Resolved credential from keychain");
+    return kcToken;
+  }
 
   // 2. File-based sources (legacy agy versions)
   const home = options.homeDir?.() ?? homedir();

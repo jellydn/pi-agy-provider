@@ -46,6 +46,23 @@ JSON files that store credentials:
 - **API key lifetime** (`API_KEY_LIFETIME_MS`): 10 years (315,360,000,000 ms). Statically defined — API keys from Google AI Studio never expire, so this is effectively permanent.
 - **agy OAuth lifetime** (`AGY_OAUTH_LIFETIME_MS`): 55 minutes (3,300,000 ms). agy tokens expire after ~1 hour; a 5-minute safety buffer prevents mid-request expiration.
 
+### Token Verifier
+
+A module (`src/oauth-verifier.ts`) that verifies an agy OAuth token against the Gemini API with built-in retry for transient network errors (DNS failures, connection refused, timeouts). Non-network errors (bad response) are terminal — no retry. The verifier is injectable via `TokenVerifier` interface; two adapters (real HTTP and mock) confirm the seam.
+
+---
+
+## Observability
+
+### Logger
+
+A structured logging interface behind a seam, shared by all modules. Two adapters:
+
+- **Console adapter** — gated by `DEBUG=agy` env var; `debug` and `info` levels only fire when the flag is set; `warn` and `error` always log.
+- **No-op adapter** — production default, silently discards all messages.
+
+Modules log: credential source resolution (`config-store`), model discovery outcome (`model-discovery`), error classification decisions (`error-handler`), and auth lifecycle events (`oauth`).
+
 ---
 
 ## Model Lifecycle

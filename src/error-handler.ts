@@ -11,6 +11,7 @@
 
 import { classifyGeminiError } from "./errors.js";
 import { PROVIDER_NAME } from "./env.js";
+import { logger } from "./logger.js";
 
 /**
  * Handle a `message_end` event for the Gemini (agy) provider.
@@ -40,7 +41,9 @@ export function handleGeminiError(
   const provider = msg.provider ?? ctx.model?.provider;
   if (provider !== PROVIDER_NAME) return;
 
-  const { message: friendlyMessage } = classifyGeminiError(msg.errorMessage);
+  const { type, message: friendlyMessage } = classifyGeminiError(msg.errorMessage);
+
+  logger.debug("Classified Gemini error", { type, rawMessage: msg.errorMessage });
 
   if (ctx.hasUI) {
     ctx.ui.notify(friendlyMessage, "error");

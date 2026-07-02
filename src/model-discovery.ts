@@ -14,6 +14,7 @@ import {
   MODELS,
   type ModelConfig,
 } from "./model-catalog.js";
+import { logger } from "./logger.js";
 
 // ─── Discovery Configuration ────────────────────────────────────────────────
 
@@ -222,7 +223,16 @@ export async function resolveModels(
 ): Promise<readonly ModelConfig[]> {
   if (apiKey) {
     const remote = await fetchRemoteModels({ ...options, apiKey });
-    if (remote) return remote;
+    if (remote) {
+      logger.info("Model discovery succeeded", {
+        count: remote.length,
+        ids: remote.map((m) => m.id),
+      });
+      return remote;
+    }
+    logger.debug("Model discovery failed, falling back to static catalog", {
+      staticCount: MODELS.length,
+    });
   }
   return MODELS;
 }
