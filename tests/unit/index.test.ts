@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { DEFAULT_API_BASE, PROVIDER_NAME } from "../../src/env.js";
+import { DEFAULT_API_BASE, ENV_API_KEY, PROVIDER_NAME } from "../../src/env.js";
 import { MODELS } from "../../src/models.js";
 
 /** Minimal mock of ExtensionAPI capturing registerProvider + on calls. */
@@ -27,13 +27,15 @@ function makeMockPi(): ExtensionAPI & {
 describe("provider registration", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Not Found", { status: 404 })));
+    delete process.env[ENV_API_KEY];
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete process.env[ENV_API_KEY];
   });
 
-  it("registers with correct baseUrl, apiKey, and api type", async () => {
+  it("uses lazy $GEMINI_API_KEY reference so key is resolved per-request", async () => {
     const fakePi = makeMockPi();
 
     const mod = await import("../../src/index.js");
@@ -43,10 +45,39 @@ describe("provider registration", () => {
     expect(captured).toBeDefined();
     expect(captured!.name).toBe(PROVIDER_NAME);
     expect(captured!.config.baseUrl).toBe(DEFAULT_API_BASE);
-    // apiKey is either the resolved key (from env/auth.json) or fallback env var reference
-    expect(captured!.config.apiKey).toBeTruthy();
+    // apiKey should always be the env var reference — pi resolves it per-request
+    expect(captured!.config.apiKey).toBe(`$${ENV_API_KEY}`);
     expect(captured!.config.api).toBe("openai-completions");
     expect(captured!.config.authHeader).toBe(true);
+  });
+
+  it("seeds process.env when GEMINI_API_KEY is unset but resolveApiKey finds a key", async () => {
+    // Simulate a key found in auth.json by setting GOOGLE_API_KEY (checked 3rd)
+    process.env.GOOGLE_API_KEY = "found-in-file";
+    delete process.env[ENV_API_KEY];
+
+    const fakePi = makeMockPi();
+    const mod = await import("../../src/index.js");
+    await mod.default(fakePi);
+
+    // Should have seeded GEMINI_API_KEY from the file-based source
+    expect(process.env[ENV_API_KEY]).toBe("found-in-file");
+
+    delete process.env.GOOGLE_API_KEY;
+  });
+
+  it("does not overwrite GEMINI_API_KEY if user already set it", async () => {
+    process.env[ENV_API_KEY] = "user-explicit-key";
+    process.env.GOOGLE_API_KEY = "should-be-ignored";
+
+    const fakePi = makeMockPi();
+    const mod = await import("../../src/index.js");
+    await mod.default(fakePi);
+
+    // User's explicit env var should stay intact
+    expect(process.env[ENV_API_KEY]).toBe("user-explicit-key");
+
+    delete process.env.GOOGLE_API_KEY;
   });
 
   it("registers all static models as fallback when API is unavailable", async () => {

@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { login, refreshToken, getApiKey } from "../../src/oauth.js";
+import { ENV_API_KEY } from "../../src/env.js";
 
 // ─── Mock resolveAgyOAuthToken from config-store ──────────────────────────
 
@@ -227,6 +228,10 @@ describe("refreshToken", () => {
 // ─── getApiKey ──────────────────────────────────────────────────────────────
 
 describe("getApiKey", () => {
+  afterEach(() => {
+    delete process.env[ENV_API_KEY];
+  });
+
   it("returns the access token from credentials", () => {
     const cred: OAuthCredentials = {
       access: "AIzaSyD_static_key",
@@ -234,5 +239,21 @@ describe("getApiKey", () => {
       expires: Date.now() + 10 * 365 * 24 * 60 * 60 * 1000,
     };
     expect(getApiKey(cred)).toBe("AIzaSyD_static_key");
+  });
+
+  it("syncs process.env so /login credential changes take effect immediately", () => {
+    delete process.env[ENV_API_KEY];
+
+    const cred: OAuthCredentials = {
+      access: "AIzaSyD_new_key_from_login",
+      refresh: "AIzaSyD_new_key_from_login",
+      expires: Date.now() + 10 * 365 * 24 * 60 * 60 * 1000,
+    };
+
+    getApiKey(cred);
+
+    // After getApiKey is called (post-/login), pi's $GEMINI_API_KEY
+    // interpolation should resolve to the new key
+    expect(process.env[ENV_API_KEY]).toBe("AIzaSyD_new_key_from_login");
   });
 });
