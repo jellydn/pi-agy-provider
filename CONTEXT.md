@@ -86,6 +86,22 @@ Three categories:
 - **Rate limited** (429) — temporary throttle
 - **Quota exceeded** (403, forbidden) — usage limit reached
 
+### Classification Rule Table
+
+A priority-ordered list of `ClassificationRule` objects, each mapping a set of substrings to an error type. The classifier iterates rules in order, returning the first match. New error types or Google message changes are handled by updating the rule table — the classifier logic stays unchanged.
+
 ### Error Pipeline
 
 Filter → Classify → Deliver via `message_end` event handler.
+
+---
+
+## Credential Resolution
+
+### Credential Parser
+
+A composable function that extracts a token from exactly one credential format. Returns a structured `{ token, expires? }` result or `undefined` when the format doesn't match. Each parser owns one format: bare string, `access_token`, nested `token.access_token`, or `agy.access`.
+
+### Parser Chain
+
+An ordered list of parsers evaluated in priority sequence. The first parser to return a non-undefined result wins. Expiry filtering is applied as middleware — expired tokens are discarded and the chain falls through to the next parser. The chain is backed by the `CredentialParser` interface.

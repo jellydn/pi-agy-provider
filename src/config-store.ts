@@ -13,6 +13,13 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  createCredentialChain,
+  agyFieldParser,
+  nestedTokenParser,
+  topLevelTokenParser,
+  bareStringParser,
+} from "./credential-parsers.js";
 import { isRecord, stringValue } from "./utils.js";
 import { ENV_API_KEY, ENV_API_KEY_ALT } from "./env.js";
 
@@ -93,8 +100,8 @@ export function walkAuthPaths<T>(
         parsed = raw.trim();
       }
 
-      const result = extract(parsed, authPath);
-      if (result !== undefined) return result;
+      const extracted = extract(parsed, authPath);
+      if (extracted !== undefined) return extracted;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (!msg.includes("ENOENT") && !msg.includes("not found")) {
@@ -105,7 +112,7 @@ export function walkAuthPaths<T>(
   return undefined;
 }
 
-// ─── Expiry Helpers ──────────────────────────────────────────────────────────
+// ─── Expiry Helper ──────────────────────────────────────────────────────────
 
 /**
  * Check whether a credential is expired.
@@ -126,42 +133,24 @@ function isExpired(expiryTime: unknown): boolean {
   return false;
 }
 
-// ─── Credential Extraction ──────────────────────────────────────────────────
+// ─── Credential Parser Chain ────────────────────────────────────────────────
 
 /**
- * Extract a credential token from a parsed auth file.
- * Handles all known token formats: bare string tokens, JSON with
- * access_token, nested {token: {access_token}}, and
- * {agy: string | {access: string}}.
+ * The prioritized credential parser chain.
  *
- * Expired tokens are skipped — the walk continues to the next file.
+ * Parsers are applied in priority order: agy field (pi auth.json),
+ * nested token (agy antigravity-oauth-token), top-level access_token
+ * (oauth_creds.json), bare string (legacy agy flat file).
+ *
+ * Expiry filtering is applied to each parser automatically — expired
+ * tokens are skipped and the chain falls through to the next parser.
  */
-function extractCredential(parsed: Record<string, unknown> | string): string | undefined {
-  // Bare string token (antigravity-oauth-token file)
-  if (typeof parsed === "string" && parsed.length > 0) return parsed;
-
-  if (!isRecord(parsed)) return undefined;
-
-  // oauth_creds.json: top-level access_token — missing/malformed expiry_date → accept token
-  const topToken = stringValue(parsed.access_token);
-  if (topToken && !isExpired(parsed.expiry_date)) return topToken;
-
-  // agy antigravity-oauth-token format — missing/malformed token.expiry → accept token
-  if (isRecord(parsed.token)) {
-    const nestedToken = stringValue(parsed.token.access_token);
-    if (nestedToken && !isExpired(parsed.token.expiry)) return nestedToken;
-  }
-
-  // agy format: {agy: "..."} or {agy: {access: "..."}}
-  const agyField = parsed.agy;
-  if (typeof agyField === "string") return agyField;
-  if (isRecord(agyField)) {
-    const access = stringValue(agyField.access);
-    if (access && !isExpired(agyField.expires)) return access;
-  }
-
-  return undefined;
-}
+const credentialChain = createCredentialChain([
+  agyFieldParser,
+  nestedTokenParser,
+  topLevelTokenParser,
+  bareStringParser,
+]);
 
 // ─── Keychain Token Resolution (macOS) ──────────────────────────────────
 
@@ -258,7 +247,10 @@ export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | und
     join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
     join(home, ".gemini", "oauth_creds.json"),
   ];
-  return walkAuthPaths({ ...options, authPaths: agyPaths }, (parsed) => extractCredential(parsed));
+  return walkAuthPaths({ ...options, authPaths: agyPaths }, (parsed) => {
+    const result = credentialChain.parse(parsed);
+    return result?.token;
+  });
 }
 
 // ─── API Key Resolution ──────────────────────────────────────────────────
@@ -285,5 +277,8 @@ export function resolveApiKey(
   if (env[ENV_API_KEY]) return env[ENV_API_KEY];
   if (env[ENV_API_KEY_ALT]) return env[ENV_API_KEY_ALT];
 
-  return walkAuthPaths(options, (parsed) => extractCredential(parsed));
+  return walkAuthPaths(options, (parsed) => {
+    const result = credentialChain.parse(parsed);
+    return result?.token;
+  });
 }
