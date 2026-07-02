@@ -158,6 +158,24 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
   return undefined;
 }
 
+// ─── agy OAuth Token Resolution ─────────────────────────────────────────
+
+/**
+ * Resolve a Gemini API token from agy CLI credential files.
+ *
+ * Walks only the agy-specific files (not auth.json) to find OAuth tokens
+ * from the Antigravity CLI installation. Used by the login flow to
+ * automatically reuse existing credentials.
+ */
+export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | undefined {
+  const home = options.homeDir?.() ?? homedir();
+  const agyPaths = [
+    join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
+    join(home, ".gemini", "oauth_creds.json"),
+  ];
+  return walkAuthPaths({ ...options, authPaths: agyPaths }, (parsed) => extractCredential(parsed));
+}
+
 // ─── API Key Resolution ──────────────────────────────────────────────────
 
 /**

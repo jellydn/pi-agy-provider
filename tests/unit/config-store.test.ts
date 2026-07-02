@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { walkAuthPaths, defaultAuthPaths, resolveApiKey } from "../../src/config-store.js";
+import {
+  walkAuthPaths,
+  defaultAuthPaths,
+  resolveAgyOAuthToken,
+  resolveApiKey,
+} from "../../src/config-store.js";
 
 describe("defaultAuthPaths", () => {
   it("includes pi auth.json first, then agy files", () => {
@@ -85,6 +90,147 @@ describe("walkAuthPaths", () => {
       return undefined;
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("resolveAgyOAuthToken", () => {
+  it("returns undefined when no credential files exist", () => {
+    const fileExists = () => false;
+    expect(resolveAgyOAuthToken({ fileExists })).toBeUndefined();
+  });
+
+  it("returns undefined when credential files have no token", () => {
+    const readFile = () => JSON.stringify({ name: "test" });
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("returns undefined when files do not contain a valid token", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token")) return "";
+      if (p.includes("oauth_creds.json")) return JSON.stringify({ other: "value" });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("extracts bare string from antigravity-oauth-token", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token")) return "AQ_bare_token_string";
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AQ_bare_token_string");
+  });
+
+  it("extracts access_token from oauth_creds.json", () => {
+    const futureExpiry = Date.now() + 86_400_000;
+    const readFile = (p: string) => {
+      if (p.includes("oauth_creds.json"))
+        return JSON.stringify({
+          access_token: "AIza_oauth_token",
+          expiry_date: futureExpiry,
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_oauth_token");
+  });
+
+  it("extracts nested token.access_token from antigravity-oauth-token", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: {
+            access_token: "AIza_nested_token",
+            expiry: "2099-01-01T00:00:00.000Z",
+          },
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_nested_token");
+  });
+
+  it("does NOT extract from auth.json (walks only agy files)", () => {
+    const readFile = (p: string) => {
+      if (p.includes("auth.json")) return JSON.stringify({ apiKey: "should_not_find_this" });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("returns undefined for empty string tokens", () => {
+    const readFile = () => "";
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("accepts tokens with missing expiry field", () => {
+    const readFile = (p: string) => {
+      if (p.includes("oauth_creds.json")) return JSON.stringify({ access_token: "AIza_no_expiry" });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_no_expiry");
+  });
+
+  it("skips expired token and falls through to next agy file", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: { access_token: "dead_nested", expiry: "2020-01-01T00:00:00Z" },
+        });
+      if (p.includes("oauth_creds.json"))
+        return JSON.stringify({
+          access_token: "AIza_fresh",
+          expiry_date: Date.now() + 86_400_000,
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_fresh");
+  });
+
+  it("returns undefined when only expired token found", () => {
+    const readFile = (p: string) => {
+      if (p.includes("oauth_creds.json"))
+        return JSON.stringify({ access_token: "dead", expiry_date: 1 });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+  });
+
+  it("accepts tokens with valid future expiry", () => {
+    const futureExpiry = Date.now() + 86_400_000;
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token"))
+        return JSON.stringify({
+          token: {
+            access_token: "AIza_future_token",
+            expiry: new Date(futureExpiry).toISOString(),
+          },
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_future_token");
+  });
+
+  it("handles malformed expiry string by accepting token", () => {
+    const readFile = (p: string) => {
+      if (p.includes("oauth_creds.json"))
+        return JSON.stringify({
+          access_token: "AIza_malformed",
+          expiry_date: "not-a-date",
+        });
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_malformed");
   });
 });
 
