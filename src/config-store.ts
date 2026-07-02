@@ -35,6 +35,8 @@ export interface AuthKeyOptions {
    * - undefined / not set: call resolveKeychainToken() (default production behaviour).
    */
   keychainToken?: string | null;
+  /** Options forwarded to resolveKeychainToken() when keychainToken is not set. */
+  keychainOptions?: KeychainOptions;
 }
 
 // ─── Path Resolution ────────────────────────────────────────────────────────
@@ -166,6 +168,27 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
 /** Timeout for keychain command in milliseconds. */
 const KEYCHAIN_TIMEOUT_MS = 3_000;
 
+/** Options for resolveKeychainToken(). */
+export interface KeychainOptions {
+  /**
+   * Override for testing. Returns the raw password string from the macOS
+   * Keychain (the `go-keyring-base64:<base64>` value), or throws on error.
+   * Defaults to calling `security find-generic-password -s "gemini" -w`.
+   */
+  readKeychainPassword?: () => string;
+  /** Override for testing. Defaults to `process.platform`. */
+  platform?: string;
+}
+
+/** Default production implementation — shells out to the macOS security(1) CLI. */
+function defaultReadKeychainPassword(): string {
+  return execSync('security find-generic-password -s "gemini" -w', {
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "ignore"],
+    timeout: KEYCHAIN_TIMEOUT_MS,
+  }).trim();
+}
+
 /**
  * Resolve a Gemini OAuth token from the macOS Keychain.
  *
@@ -173,18 +196,20 @@ const KEYCHAIN_TIMEOUT_MS = 3_000;
  * name "gemini", encoded as `go-keyring-base64:<base64-encoded JSON>`.
  * The JSON contains `{token: {access_token, expiry, ...}}`.
  *
+ * Options are injectable for testability — pass `readKeychainPassword` to
+ * mock the keychain read without shelling out to security(1).
+ *
  * Returns undefined on any error — this is best-effort and the caller
  * falls through to file-based resolution.
  */
-function resolveKeychainToken(): string | undefined {
-  if (process.platform !== "darwin") return undefined;
+export function resolveKeychainToken(options: KeychainOptions = {}): string | undefined {
+  const platform = options.platform ?? process.platform;
+  if (platform !== "darwin") return undefined;
+
+  const readPassword = options.readKeychainPassword ?? defaultReadKeychainPassword;
 
   try {
-    const raw = execSync('security find-generic-password -s "gemini" -w', {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: KEYCHAIN_TIMEOUT_MS,
-    }).trim();
+    const raw = readPassword();
 
     if (!raw || !raw.startsWith("go-keyring-base64:")) return undefined;
 
@@ -222,7 +247,9 @@ export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | und
   // 1. macOS Keychain (agy v1.0.15+)
   //    keychainToken option: string = use it; null = skip; undefined = call resolveKeychainToken()
   const kcToken =
-    "keychainToken" in options ? (options.keychainToken ?? undefined) : resolveKeychainToken();
+    "keychainToken" in options
+      ? (options.keychainToken ?? undefined)
+      : resolveKeychainToken(options.keychainOptions);
   if (kcToken) return kcToken;
 
   // 2. File-based sources (legacy agy versions)

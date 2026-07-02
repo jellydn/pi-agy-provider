@@ -4,6 +4,7 @@ import {
   defaultAuthPaths,
   resolveAgyOAuthToken,
   resolveApiKey,
+  resolveKeychainToken,
 } from "../../src/config-store.js";
 
 describe("defaultAuthPaths", () => {
@@ -278,6 +279,147 @@ describe("resolveAgyOAuthToken", () => {
       "AQ_file_token",
     );
   });
+
+  it("passes keychainOptions through to resolveKeychainToken", () => {
+    // When keychainToken is NOT set, keychainOptions.readKeychainPassword is used.
+    // Build a valid keychain payload and verify it's extracted before checking files.
+    const json = JSON.stringify({
+      token: { access_token: "ya29.from_keychain_opts", expiry: "2099-01-01T00:00:00.000Z" },
+    });
+    const raw = `go-keyring-base64:${Buffer.from(json).toString("base64")}`;
+
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token")) return "AQ_should_not_be_used";
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+
+    // keychainOptions provides the password → token extracted from keychain, files ignored
+    expect(
+      resolveAgyOAuthToken({
+        readFile,
+        fileExists,
+        keychainOptions: { readKeychainPassword: () => raw },
+      }),
+    ).toBe("ya29.from_keychain_opts");
+  });
+});
+
+describe("resolveKeychainToken", () => {
+  /** Build a valid go-keyring-base64 payload with the given token fields. */
+  function keychainPayload(tokenFields: Record<string, unknown>): string {
+    const json = JSON.stringify({ token: tokenFields });
+    return `go-keyring-base64:${Buffer.from(json).toString("base64")}`;
+  }
+
+  it("returns access_token from well-formed keychain data", () => {
+    const raw = keychainPayload({
+      access_token: "ya29.valid_token",
+      expiry: "2099-01-01T00:00:00.000Z",
+    });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.valid_token");
+  });
+
+  it("returns undefined on non-darwin platforms", () => {
+    const raw = keychainPayload({ access_token: "ya29.token" });
+    // Platform is injectable — no global mutation needed
+    expect(
+      resolveKeychainToken({ readKeychainPassword: () => raw, platform: "linux" }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when password is empty", () => {
+    expect(resolveKeychainToken({ readKeychainPassword: () => "" })).toBeUndefined();
+  });
+
+  it("returns undefined when password lacks go-keyring-base64 prefix", () => {
+    expect(
+      resolveKeychainToken({ readKeychainPassword: () => "some-other-token" }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined on malformed base64", () => {
+    expect(
+      resolveKeychainToken({
+        readKeychainPassword: () => "go-keyring-base64:!!!not-base64!!!",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when base64 decodes to non-object", () => {
+    const b64 = Buffer.from('"just a string"').toString("base64");
+    expect(
+      resolveKeychainToken({
+        readKeychainPassword: () => `go-keyring-base64:${b64}`,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when token field is missing", () => {
+    const b64 = Buffer.from(JSON.stringify({ other: "value" })).toString("base64");
+    expect(
+      resolveKeychainToken({
+        readKeychainPassword: () => `go-keyring-base64:${b64}`,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when token.access_token is missing", () => {
+    const raw = keychainPayload({ expiry: "2099-01-01T00:00:00.000Z" });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBeUndefined();
+  });
+
+  it("returns undefined for expired token", () => {
+    const raw = keychainPayload({
+      access_token: "ya29.expired",
+      expiry: "2020-01-01T00:00:00.000Z",
+    });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBeUndefined();
+  });
+
+  it("accepts token with valid future expiry", () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const raw = keychainPayload({ access_token: "ya29.fresh", expiry: future });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.fresh");
+  });
+
+  it("accepts token with missing expiry field", () => {
+    const raw = keychainPayload({ access_token: "ya29.no_expiry" });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.no_expiry");
+  });
+
+  it("accepts token with malformed expiry string", () => {
+    const raw = keychainPayload({
+      access_token: "ya29.bad_expiry",
+      expiry: "not-a-date",
+    });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.bad_expiry");
+  });
+
+  it("returns undefined when readKeychainPassword throws", () => {
+    expect(
+      resolveKeychainToken({
+        readKeychainPassword: () => {
+          throw new Error("Keychain not available");
+        },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("handles real keychain tokens with additional fields", () => {
+    // agy stores token_type, refresh_token, etc. alongside access_token
+    const raw = keychainPayload({
+      access_token: "ya29.full",
+      expiry: "2099-01-01T00:00:00.000Z",
+      token_type: "Bearer",
+      refresh_token: "1//refresh",
+      expiry_timestamp: 4070908800,
+    });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.full");
+  });
+
+  // Manual smoke test (macOS only — slow, shells out to security(1)):
+  //   expect(() => resolveKeychainToken()).not.toThrow();
 });
 
 describe("resolveApiKey", () => {
