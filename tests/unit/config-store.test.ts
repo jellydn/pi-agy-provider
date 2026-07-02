@@ -294,12 +294,13 @@ describe("resolveAgyOAuthToken", () => {
     };
     const fileExists = () => true;
 
-    // keychainOptions provides the password → token extracted from keychain, files ignored
+    // keychainOptions provides the password → token extracted from keychain, files ignored.
+    // Explicit darwin platform needed for CI (Linux runners skip keychain by default).
     expect(
       resolveAgyOAuthToken({
         readFile,
         fileExists,
-        keychainOptions: { readKeychainPassword: () => raw },
+        keychainOptions: { readKeychainPassword: () => raw, platform: "darwin" },
       }),
     ).toBe("ya29.from_keychain_opts");
   });
@@ -317,7 +318,9 @@ describe("resolveKeychainToken", () => {
       access_token: "ya29.valid_token",
       expiry: "2099-01-01T00:00:00.000Z",
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.valid_token");
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
+      "ya29.valid_token",
+    );
   });
 
   it("returns undefined on non-darwin platforms", () => {
@@ -329,12 +332,14 @@ describe("resolveKeychainToken", () => {
   });
 
   it("returns undefined when password is empty", () => {
-    expect(resolveKeychainToken({ readKeychainPassword: () => "" })).toBeUndefined();
+    expect(
+      resolveKeychainToken({ readKeychainPassword: () => "", platform: "darwin" }),
+    ).toBeUndefined();
   });
 
   it("returns undefined when password lacks go-keyring-base64 prefix", () => {
     expect(
-      resolveKeychainToken({ readKeychainPassword: () => "some-other-token" }),
+      resolveKeychainToken({ readKeychainPassword: () => "some-other-token", platform: "darwin" }),
     ).toBeUndefined();
   });
 
@@ -342,6 +347,7 @@ describe("resolveKeychainToken", () => {
     expect(
       resolveKeychainToken({
         readKeychainPassword: () => "go-keyring-base64:!!!not-base64!!!",
+        platform: "darwin",
       }),
     ).toBeUndefined();
   });
@@ -351,6 +357,7 @@ describe("resolveKeychainToken", () => {
     expect(
       resolveKeychainToken({
         readKeychainPassword: () => `go-keyring-base64:${b64}`,
+        platform: "darwin",
       }),
     ).toBeUndefined();
   });
@@ -360,13 +367,16 @@ describe("resolveKeychainToken", () => {
     expect(
       resolveKeychainToken({
         readKeychainPassword: () => `go-keyring-base64:${b64}`,
+        platform: "darwin",
       }),
     ).toBeUndefined();
   });
 
   it("returns undefined when token.access_token is missing", () => {
     const raw = keychainPayload({ expiry: "2099-01-01T00:00:00.000Z" });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBeUndefined();
+    expect(
+      resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" }),
+    ).toBeUndefined();
   });
 
   it("returns undefined for expired token", () => {
@@ -374,18 +384,24 @@ describe("resolveKeychainToken", () => {
       access_token: "ya29.expired",
       expiry: "2020-01-01T00:00:00.000Z",
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBeUndefined();
+    expect(
+      resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" }),
+    ).toBeUndefined();
   });
 
   it("accepts token with valid future expiry", () => {
     const future = new Date(Date.now() + 86_400_000).toISOString();
     const raw = keychainPayload({ access_token: "ya29.fresh", expiry: future });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.fresh");
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
+      "ya29.fresh",
+    );
   });
 
   it("accepts token with missing expiry field", () => {
     const raw = keychainPayload({ access_token: "ya29.no_expiry" });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.no_expiry");
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
+      "ya29.no_expiry",
+    );
   });
 
   it("accepts token with malformed expiry string", () => {
@@ -393,7 +409,9 @@ describe("resolveKeychainToken", () => {
       access_token: "ya29.bad_expiry",
       expiry: "not-a-date",
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.bad_expiry");
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
+      "ya29.bad_expiry",
+    );
   });
 
   it("returns undefined when readKeychainPassword throws", () => {
@@ -402,6 +420,7 @@ describe("resolveKeychainToken", () => {
         readKeychainPassword: () => {
           throw new Error("Keychain not available");
         },
+        platform: "darwin",
       }),
     ).toBeUndefined();
   });
@@ -415,7 +434,9 @@ describe("resolveKeychainToken", () => {
       refresh_token: "1//refresh",
       expiry_timestamp: 4070908800,
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw })).toBe("ya29.full");
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
+      "ya29.full",
+    );
   });
 
   // Manual smoke test (macOS only — slow, shells out to security(1)):
