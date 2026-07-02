@@ -9,6 +9,7 @@
  * @module agy-config-store
  */
 
+import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -27,6 +28,13 @@ export interface AuthKeyOptions {
   homeDir?: () => string;
   readFile?: (path: string) => string;
   fileExists?: (path: string) => boolean;
+  /**
+   * Pre-resolved keychain token for testability.
+   * - string: use as the resolved keychain token.
+   * - null: skip the keychain check entirely (test isolation on macOS).
+   * - undefined / not set: call resolveKeychainToken() (default production behaviour).
+   */
+  keychainToken?: string | null;
 }
 
 // ─── Path Resolution ────────────────────────────────────────────────────────
@@ -158,16 +166,71 @@ function extractCredential(parsed: Record<string, unknown> | string): string | u
   return undefined;
 }
 
+// ─── Keychain Token Resolution (macOS) ──────────────────────────────────
+
+/** Timeout for keychain command in milliseconds. */
+const KEYCHAIN_TIMEOUT_MS = 3_000;
+
+/**
+ * Resolve a Gemini OAuth token from the macOS Keychain.
+ *
+ * agy CLI v1.0.15+ stores credentials in the Keychain under the service
+ * name "gemini", encoded as `go-keyring-base64:<base64-encoded JSON>`.
+ * The JSON contains `{token: {access_token, expiry, ...}}`.
+ *
+ * Returns undefined on any error — this is best-effort and the caller
+ * falls through to file-based resolution.
+ */
+function resolveKeychainToken(): string | undefined {
+  if (process.platform !== "darwin") return undefined;
+
+  try {
+    const raw = execSync('security find-generic-password -s "gemini" -w', {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: KEYCHAIN_TIMEOUT_MS,
+    }).trim();
+
+    if (!raw || !raw.startsWith("go-keyring-base64:")) return undefined;
+
+    const b64 = raw.slice("go-keyring-base64:".length);
+    const json: unknown = JSON.parse(Buffer.from(b64, "base64").toString("utf-8"));
+
+    if (!isRecord(json)) return undefined;
+    const token = json.token;
+    if (!isRecord(token)) return undefined;
+
+    const accessToken = stringValue(token.access_token);
+    if (!accessToken || isExpired(token.expiry)) return undefined;
+
+    return accessToken;
+  } catch {
+    // Keychain unavailable, not logged in, or token expired —
+    // silently fall through to file-based resolution.
+    return undefined;
+  }
+}
+
 // ─── agy OAuth Token Resolution ─────────────────────────────────────────
 
 /**
- * Resolve a Gemini API token from agy CLI credential files.
+ * Resolve a Gemini API token from agy CLI credentials.
  *
- * Walks only the agy-specific files (not auth.json) to find OAuth tokens
- * from the Antigravity CLI installation. Used by the login flow to
- * automatically reuse existing credentials.
+ * Checks sources in order:
+ * 1. macOS Keychain — agy v1.0.15+ stores OAuth tokens here
+ * 2. ~/.gemini/antigravity-cli/antigravity-oauth-token — legacy agy flat file
+ * 3. ~/.gemini/oauth_creds.json — Gemini CLI OAuth credentials
+ *
+ * Used by the login flow to automatically reuse existing agy CLI credentials.
  */
 export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | undefined {
+  // 1. macOS Keychain (agy v1.0.15+)
+  //    keychainToken option: string = use it; null = skip; undefined = call resolveKeychainToken()
+  const kcToken =
+    "keychainToken" in options ? (options.keychainToken ?? undefined) : resolveKeychainToken();
+  if (kcToken) return kcToken;
+
+  // 2. File-based sources (legacy agy versions)
   const home = options.homeDir?.() ?? homedir();
   const agyPaths = [
     join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"),

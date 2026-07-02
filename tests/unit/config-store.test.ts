@@ -96,13 +96,13 @@ describe("walkAuthPaths", () => {
 describe("resolveAgyOAuthToken", () => {
   it("returns undefined when no credential files exist", () => {
     const fileExists = () => false;
-    expect(resolveAgyOAuthToken({ fileExists })).toBeUndefined();
+    expect(resolveAgyOAuthToken({ fileExists, keychainToken: null })).toBeUndefined();
   });
 
   it("returns undefined when credential files have no token", () => {
     const readFile = () => JSON.stringify({ name: "test" });
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBeUndefined();
   });
 
   it("returns undefined when files do not contain a valid token", () => {
@@ -112,7 +112,7 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBeUndefined();
   });
 
   it("extracts bare string from antigravity-oauth-token", () => {
@@ -121,7 +121,9 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = (p: string) => p.includes("antigravity-oauth-token");
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AQ_bare_token_string");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AQ_bare_token_string",
+    );
   });
 
   it("extracts access_token from oauth_creds.json", () => {
@@ -135,7 +137,9 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_oauth_token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AIza_oauth_token",
+    );
   });
 
   it("extracts nested token.access_token from antigravity-oauth-token", () => {
@@ -150,7 +154,9 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_nested_token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AIza_nested_token",
+    );
   });
 
   it("does NOT extract from auth.json (walks only agy files)", () => {
@@ -159,13 +165,13 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBeUndefined();
   });
 
   it("returns undefined for empty string tokens", () => {
     const readFile = () => "";
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBeUndefined();
   });
 
   it("accepts tokens with missing expiry field", () => {
@@ -174,7 +180,9 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_no_expiry");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AIza_no_expiry",
+    );
   });
 
   it("skips expired token and falls through to next agy file", () => {
@@ -191,7 +199,7 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_fresh");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe("AIza_fresh");
   });
 
   it("returns undefined when only expired token found", () => {
@@ -201,7 +209,7 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBeUndefined();
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBeUndefined();
   });
 
   it("accepts tokens with valid future expiry", () => {
@@ -217,7 +225,9 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_future_token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AIza_future_token",
+    );
   });
 
   it("handles malformed expiry string by accepting token", () => {
@@ -230,7 +240,45 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists })).toBe("AIza_malformed");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AIza_malformed",
+    );
+  });
+
+  // ── Keychain (agy v1.0.15+) ─────────────────────────────────────────────
+
+  it("returns keychain token immediately when provided (priority over files)", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token")) return "AQ_file_token";
+      throw new Error("ENOENT");
+    };
+    const fileExists = () => true;
+    // keychain token takes priority — files are never checked
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: "AQ_keychain_token" })).toBe(
+      "AQ_keychain_token",
+    );
+  });
+
+  it("skips keychain when keychainToken is null and falls through to files", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token")) return "AQ_file_token";
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
+      "AQ_file_token",
+    );
+  });
+
+  it("skips keychain when keychainToken is undefined (explicit)", () => {
+    const readFile = (p: string) => {
+      if (p.includes("antigravity-oauth-token")) return "AQ_file_token";
+      throw new Error("ENOENT");
+    };
+    const fileExists = (p: string) => p.includes("antigravity-oauth-token");
+    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: undefined })).toBe(
+      "AQ_file_token",
+    );
   });
 });
 
