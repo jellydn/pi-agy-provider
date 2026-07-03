@@ -6,7 +6,7 @@
 > This extension is under active development. The agy OAuth auto-detection
 > and token refresh have known issues on some setups. For a stable
 > Antigravity OAuth experience with Gemini 3 models, Claude, and GPT-OSS,
-> use the official extension:
+> use below extension:
 >
 > ```sh
 > pi install npm:@yofriadi/pi-antigravity-oauth
