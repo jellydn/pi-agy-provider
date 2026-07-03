@@ -69,6 +69,24 @@ export async function login(
         expires: Date.now() + AGY_OAUTH_LIFETIME_MS,
       };
     }
+
+    // Access token failed verification — try refreshing if we have a real
+    // refresh_token (Keychain tokens have one; file-based tokens set
+    // refresh === access).
+    if (agyToken.refresh !== agyToken.access) {
+      logger.debug("agy access token expired, attempting refresh");
+      try {
+        const refreshed = await refreshToken({
+          access: agyToken.access,
+          refresh: agyToken.refresh,
+          expires: 0, // force refresh
+        });
+        logger.debug("agy token refreshed during login");
+        return refreshed;
+      } catch {
+        logger.debug("agy token refresh failed during login, falling back to manual");
+      }
+    }
   }
 
   // 2. Fall back to manual API key paste

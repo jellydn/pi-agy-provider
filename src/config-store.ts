@@ -226,7 +226,12 @@ export function resolveKeychainToken(options: KeychainOptions = {}): KeychainTok
 
     const accessToken = stringValue(token.access_token);
     const refreshToken = stringValue(token.refresh_token);
-    if (!accessToken || isExpired(token.expiry)) return undefined;
+    if (!accessToken) return undefined;
+
+    // Accept expired access tokens when a refresh_token is available.
+    // The caller (login()) will verify the access_token against the API;
+    // if it fails, refreshToken() can obtain a new one from Google.
+    if (isExpired(token.expiry) && !refreshToken) return undefined;
 
     return {
       access: accessToken,

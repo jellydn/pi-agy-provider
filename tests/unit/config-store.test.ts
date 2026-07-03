@@ -372,7 +372,7 @@ describe("resolveKeychainToken", () => {
     ).toBeUndefined();
   });
 
-  it("returns undefined for expired token", () => {
+  it("returns undefined for expired token with no refresh_token", () => {
     const raw = keychainPayload({
       access_token: "ya29.expired",
       expiry: "2020-01-01T00:00:00.000Z",
@@ -436,7 +436,17 @@ describe("resolveKeychainToken", () => {
     });
   });
 
-  // Manual smoke test (macOS only — slow, shells out to security(1)):
+  it("returns expired token when refresh_token is available (caller will refresh)", () => {
+    const raw = keychainPayload({
+      access_token: "ya29.expired_but_refreshable",
+      refresh_token: "1//can_refresh_this",
+      expiry: "2020-01-01T00:00:00.000Z",
+    });
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toEqual({
+      access: "ya29.expired_but_refreshable",
+      refresh: "1//can_refresh_this",
+    });
+  });
   //   expect(() => resolveKeychainToken()).not.toThrow();
 });
 
