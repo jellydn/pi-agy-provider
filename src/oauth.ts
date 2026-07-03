@@ -16,7 +16,7 @@ import { resolveAgyOAuthToken } from "./config-store.js";
 import { sanitizeApiKey, API_KEY_URL, ENV_API_KEY } from "./env.js";
 import { defaultVerifier, type TokenVerifier } from "./oauth-verifier.js";
 import { logger } from "./logger.js";
-import { GEMINI_CLI_CLIENT_ID, GEMINI_CLI_CLIENT_SECRET } from "./oauth-credentials.js";
+import { ANTIGRAVITY_CLIENT_ID, ANTIGRAVITY_CLIENT_SECRET } from "./oauth-credentials.js";
 
 /** Lifetime for static API key credentials (10 years — effectively permanent). */
 const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
@@ -146,8 +146,8 @@ export async function refreshToken(credentials: OAuthCredentials): Promise<OAuth
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: GEMINI_CLI_CLIENT_ID,
-      client_secret: GEMINI_CLI_CLIENT_SECRET,
+      client_id: ANTIGRAVITY_CLIENT_ID,
+      client_secret: ANTIGRAVITY_CLIENT_SECRET,
       refresh_token: credentials.refresh,
       grant_type: "refresh_token",
     }),
