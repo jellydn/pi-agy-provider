@@ -1,5 +1,21 @@
 # pi-agy-provider
 
+> [!WARNING]
+> **Work in Progress — Proof of Concept**
+>
+> This extension is under active development. The agy OAuth auto-detection
+> and token refresh have known issues on some setups. For a stable
+> Antigravity OAuth experience with Gemini 3 models, Claude, and GPT-OSS,
+> use the official extension:
+>
+> ```sh
+> pi install npm:@yofriadi/pi-antigravity-oauth
+> ```
+>
+> That extension performs a full PKCE OAuth dance with proper refresh token
+> support and provides access to 16+ models including Gemini 3.5 Flash,
+> Claude Opus/Sonnet, and GPT-OSS.
+
 [![npm](https://img.shields.io/npm/v/pi-agy-provider)](https://www.npmjs.com/package/pi-agy-provider)
 [![npm downloads](https://img.shields.io/npm/dm/pi-agy-provider)](https://www.npmjs.com/package/pi-agy-provider)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -60,23 +76,27 @@ pi -e /path/to/pi-agy-provider --model agy/gemini-3.5-flash
 
 Credentials are resolved in this order:
 
-| Priority | Source                   | Notes                                                                                    |
-| :------- | :----------------------- | :--------------------------------------------------------------------------------------- |
-| 1        | `GEMINI_API_KEY` env var | Long-lived; best for extended sessions                                                   |
-| 2        | `GOOGLE_API_KEY` env var | Alternate env name used by some Google SDKs                                              |
-| 3        | agy OAuth token          | From `~/.gemini/antigravity-cli/antigravity-oauth-token` or `~/.gemini/oauth_creds.json` |
-| 4        | `~/.pi/agent/auth.json`  | pi-stored key or OAuth object                                                            |
+| Priority | Source                   | Notes                                                                                  |
+| :------- | :----------------------- | :------------------------------------------------------------------------------------- |
+| 1        | `GEMINI_API_KEY` env var | Long-lived; best for extended sessions                                                 |
+| 2        | `GOOGLE_API_KEY` env var | Alternate env name used by some Google SDKs                                            |
+| 3        | agy OAuth token          | From macOS Keychain (`security find-generic-password -s "gemini"`). Refresh supported. |
+| 4        | `~/.pi/agent/auth.json`  | pi-stored key or OAuth object                                                          |
 
-### Option A: agy CLI (recommended)
+### Option A: agy CLI (experimental)
 
-If you use [Google Antigravity](https://antigravity.google), sign in once with the `agy` CLI. This extension reads that token automatically.
+If you use [Google Antigravity](https://antigravity.google), sign in once with the `agy` CLI. This extension reads that token from the macOS Keychain automatically.
 
 ```sh
 agy   # sign in if you haven't already
-pi /login   # select "Google Gemini (agy)" — instant if agy credentials exist
+pi /login   # select "Google Gemini (agy)" — auto-detects Keychain token
 ```
 
-### Option B: Static API key
+> **Note:** agy OAuth token refresh requires the Antigravity OAuth client
+> credentials to be correctly configured. If auto-login doesn't work, use
+> Option B or the recommended `@yofriadi/pi-antigravity-oauth` extension.
+
+### Option B: Static API key (recommended for this provider)
 
 ```sh
 export GEMINI_API_KEY="your_key_here"   # from aistudio.google.com/apikey
@@ -84,7 +104,9 @@ export GEMINI_API_KEY="your_key_here"   # from aistudio.google.com/apikey
 
 Or run `pi /login` → **Google Gemini (agy)**. If no agy login is found, it opens Google AI Studio and prompts you to paste a key.
 
-> **Note:** agy OAuth tokens expire after ~1 hour and cannot be refreshed from pi. Re-run `agy` or use a static API key for long sessions.
+> **Note:** agy OAuth token refresh requires the Antigravity OAuth client
+> credentials (`ANTIGRAVITY_CLIENT_ID`). If auto-login doesn't work, use a
+> static API key or the recommended `@yofriadi/pi-antigravity-oauth` extension.
 
 ## Usage
 

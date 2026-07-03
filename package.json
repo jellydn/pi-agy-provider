@@ -1,7 +1,7 @@
 {
   "name": "pi-agy-provider",
   "version": "0.1.0",
-  "description": "Google Gemini provider for pi — access Gemini 3.5 Flash and Gemini 3.1 Pro through Google's OpenAI-compatible API, with agy (Antigravity CLI) OAuth credential reuse",
+  "description": "[WIP/PoC] Google Gemini provider for pi — access Gemini models through Google's OpenAI-compatible API. For stable Antigravity OAuth, use @yofriadi/pi-antigravity-oauth.",
   "keywords": [
     "agy",
     "ai",
