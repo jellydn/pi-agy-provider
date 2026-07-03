@@ -96,13 +96,23 @@ export async function login(
 /**
  * Refresh Google Gemini credentials.
  *
- * For agy OAuth tokens and static API keys alike, this is a no-op —
- * agy tokens cannot be refreshed without re-running `agy`, and API
- * keys don't expire. Run `pi /login` to re-authenticate if needed.
+ * agy OAuth tokens are short-lived (~1 hour) and cannot be refreshed
+ * without re-running `agy`. Static API keys from Google AI Studio
+ * effectively never expire (10-year lifetime).
+ *
+ * When credentials are expired, this throws so pi triggers `/login`
+ * automatically. Returning the expired credentials would cause pi to
+ * keep using them and fail silently on every request.
+ *
+ * For long-running sessions, use a static API key from
+ * aistudio.google.com/apikey instead of agy OAuth tokens.
  */
 export async function refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
   if (credentials.expires <= Date.now()) {
-    logger.warn("Credentials have expired — run `pi /login` to re-authenticate");
+    throw new Error(
+      "Gemini credentials have expired. Run `pi /login` to re-authenticate. " +
+        "Tip: use a static API key from aistudio.google.com/apikey for long-running sessions.",
+    );
   }
   return credentials;
 }

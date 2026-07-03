@@ -46,6 +46,8 @@ JSON files that store credentials:
 - **API key lifetime** (`API_KEY_LIFETIME_MS`): 10 years (315,360,000,000 ms). Statically defined — API keys from Google AI Studio never expire, so this is effectively permanent.
 - **agy OAuth lifetime** (`AGY_OAUTH_LIFETIME_MS`): 55 minutes (3,300,000 ms). agy tokens expire after ~1 hour; a 5-minute safety buffer prevents mid-request expiration.
 
+**Important**: agy OAuth tokens cannot be refreshed. The agy CLI stores only `access_token`, not `refresh_token`. Unlike the pi-antigravity-oauth extension (which performs a full PKCE OAuth dance with `access_type=offline` to obtain refresh tokens), this provider reuses tokens the agy CLI has already obtained. When they expire, `refreshToken()` throws an error so pi triggers `/login` automatically. For long-running sessions, use a static API key.
+
 ### Token Verifier
 
 A module (`src/oauth-verifier.ts`) that verifies an agy OAuth token against the Gemini API with built-in retry for transient network errors (DNS failures, connection refused, timeouts). Non-network errors (bad response) are terminal — no retry. The verifier is injectable via `TokenVerifier` interface; two adapters (real HTTP and mock) confirm the seam.

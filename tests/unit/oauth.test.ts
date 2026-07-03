@@ -192,7 +192,7 @@ describe("login — manual API key flow", () => {
 // ─── refreshToken ───────────────────────────────────────────────────────────
 
 describe("refreshToken", () => {
-  it("returns credentials as-is (no-op)", async () => {
+  it("returns credentials as-is when they are still valid", async () => {
     const cred: OAuthCredentials = {
       access: "AIzaSyD_static_key_abc123",
       refresh: "AIzaSyD_static_key_abc123",
@@ -205,34 +205,14 @@ describe("refreshToken", () => {
     expect(result.refresh).toBe("AIzaSyD_static_key_abc123");
   });
 
-  it("returns credentials even when expired", async () => {
+  it("throws when credentials are expired so pi triggers re-login", async () => {
     const cred: OAuthCredentials = {
       access: "AIzaSyD_expired_key",
       refresh: "AIzaSyD_expired_key",
       expires: Date.now() - 1000,
     };
 
-    const result = await refreshToken(cred);
-
-    expect(result.access).toBe("AIzaSyD_expired_key");
-    expect(result).toEqual(cred);
-  });
-
-  it("warns when credentials are expired", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const cred: OAuthCredentials = {
-      access: "AIzaSyD_expired_key",
-      refresh: "AIzaSyD_expired_key",
-      expires: Date.now() - 1000,
-    };
-
-    await refreshToken(cred);
-
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain("[agy]");
-    expect(warnSpy.mock.calls[0][0]).toContain("expired");
-    expect(warnSpy.mock.calls[0][0]).toContain("pi /login");
-    warnSpy.mockRestore();
+    await expect(refreshToken(cred)).rejects.toThrow("Gemini credentials have expired");
   });
 });
 
