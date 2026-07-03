@@ -120,9 +120,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = (p: string) => p.includes("antigravity-oauth-token");
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AQ_bare_token_string",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AQ_bare_token_string", refresh: "AQ_bare_token_string" });
   });
 
   it("extracts access_token from oauth_creds.json", () => {
@@ -136,9 +135,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AIza_oauth_token",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AIza_oauth_token", refresh: "AIza_oauth_token" });
   });
 
   it("extracts nested token.access_token from antigravity-oauth-token", () => {
@@ -153,9 +151,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AIza_nested_token",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AIza_nested_token", refresh: "AIza_nested_token" });
   });
 
   it("does NOT extract from auth.json (walks only agy files)", () => {
@@ -179,9 +176,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AIza_no_expiry",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AIza_no_expiry", refresh: "AIza_no_expiry" });
   });
 
   it("skips expired token and falls through to next agy file", () => {
@@ -198,7 +194,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe("AIza_fresh");
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AIza_fresh", refresh: "AIza_fresh" });
   });
 
   it("returns undefined when only expired token found", () => {
@@ -224,9 +221,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AIza_future_token",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AIza_future_token", refresh: "AIza_future_token" });
   });
 
   it("handles malformed expiry string by accepting token", () => {
@@ -239,9 +235,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AIza_malformed",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AIza_malformed", refresh: "AIza_malformed" });
   });
 
   // ── Keychain (agy v1.0.15+) ─────────────────────────────────────────────
@@ -252,10 +247,12 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = () => true;
-    // keychain token takes priority — files are never checked
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: "AQ_keychain_token" })).toBe(
-      "AQ_keychain_token",
-    );
+    const result = resolveAgyOAuthToken({
+      readFile,
+      fileExists,
+      keychainToken: "AQ_keychain_token",
+    });
+    expect(result).toEqual({ access: "AQ_keychain_token", refresh: "AQ_keychain_token" });
   });
 
   it("skips keychain when keychainToken is null and falls through to files", () => {
@@ -264,9 +261,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = (p: string) => p.includes("antigravity-oauth-token");
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null })).toBe(
-      "AQ_file_token",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: null });
+    expect(result).toEqual({ access: "AQ_file_token", refresh: "AQ_file_token" });
   });
 
   it("skips keychain when keychainToken is undefined (explicit)", () => {
@@ -275,9 +271,8 @@ describe("resolveAgyOAuthToken", () => {
       throw new Error("ENOENT");
     };
     const fileExists = (p: string) => p.includes("antigravity-oauth-token");
-    expect(resolveAgyOAuthToken({ readFile, fileExists, keychainToken: undefined })).toBe(
-      "AQ_file_token",
-    );
+    const result = resolveAgyOAuthToken({ readFile, fileExists, keychainToken: undefined });
+    expect(result).toEqual({ access: "AQ_file_token", refresh: "AQ_file_token" });
   });
 
   it("passes keychainOptions through to resolveKeychainToken", () => {
@@ -294,15 +289,12 @@ describe("resolveAgyOAuthToken", () => {
     };
     const fileExists = () => true;
 
-    // keychainOptions provides the password → token extracted from keychain, files ignored.
-    // Explicit darwin platform needed for CI (Linux runners skip keychain by default).
-    expect(
-      resolveAgyOAuthToken({
-        readFile,
-        fileExists,
-        keychainOptions: { readKeychainPassword: () => raw, platform: "darwin" },
-      }),
-    ).toBe("ya29.from_keychain_opts");
+    const result = resolveAgyOAuthToken({
+      readFile,
+      fileExists,
+      keychainOptions: { readKeychainPassword: () => raw, platform: "darwin" },
+    });
+    expect(result?.access).toBe("ya29.from_keychain_opts");
   });
 });
 
@@ -318,9 +310,10 @@ describe("resolveKeychainToken", () => {
       access_token: "ya29.valid_token",
       expiry: "2099-01-01T00:00:00.000Z",
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
-      "ya29.valid_token",
-    );
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toEqual({
+      access: "ya29.valid_token",
+      refresh: "ya29.valid_token",
+    });
   });
 
   it("returns undefined on non-darwin platforms", () => {
@@ -392,16 +385,18 @@ describe("resolveKeychainToken", () => {
   it("accepts token with valid future expiry", () => {
     const future = new Date(Date.now() + 86_400_000).toISOString();
     const raw = keychainPayload({ access_token: "ya29.fresh", expiry: future });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
-      "ya29.fresh",
-    );
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toEqual({
+      access: "ya29.fresh",
+      refresh: "ya29.fresh",
+    });
   });
 
   it("accepts token with missing expiry field", () => {
     const raw = keychainPayload({ access_token: "ya29.no_expiry" });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
-      "ya29.no_expiry",
-    );
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toEqual({
+      access: "ya29.no_expiry",
+      refresh: "ya29.no_expiry",
+    });
   });
 
   it("accepts token with malformed expiry string", () => {
@@ -409,9 +404,10 @@ describe("resolveKeychainToken", () => {
       access_token: "ya29.bad_expiry",
       expiry: "not-a-date",
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
-      "ya29.bad_expiry",
-    );
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toEqual({
+      access: "ya29.bad_expiry",
+      refresh: "ya29.bad_expiry",
+    });
   });
 
   it("returns undefined when readKeychainPassword throws", () => {
@@ -434,9 +430,10 @@ describe("resolveKeychainToken", () => {
       refresh_token: "1//refresh",
       expiry_timestamp: 4070908800,
     });
-    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toBe(
-      "ya29.full",
-    );
+    expect(resolveKeychainToken({ readKeychainPassword: () => raw, platform: "darwin" })).toEqual({
+      access: "ya29.full",
+      refresh: "1//refresh",
+    });
   });
 
   // Manual smoke test (macOS only — slow, shells out to security(1)):

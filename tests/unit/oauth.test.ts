@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { login, refreshToken, getApiKey } from "../../src/oauth.js";
 import { createTokenVerifier, type TokenVerifier } from "../../src/oauth-verifier.js";
+import type { KeychainToken } from "../../src/config-store.js";
 import { ENV_API_KEY } from "../../src/env.js";
 
 // ─── Mock resolveAgyOAuthToken from config-store ──────────────────────────
@@ -28,6 +29,11 @@ function makeCallbacks(overrides?: {
     onPrompt: overrides?.onPrompt ?? (async () => ""),
     onDeviceCode: vi.fn(),
   } as unknown as OAuthLoginCallbacks;
+}
+
+/** Create a mock KeychainToken for tests. */
+function mockToken(token: string): KeychainToken {
+  return { access: token, refresh: token };
 }
 
 /** Create a verifier that returns the given result without network calls. */
@@ -58,7 +64,7 @@ describe("login — agy OAuth auto-login", () => {
 
   it("reuses valid agy OAuth token without prompting user", async () => {
     const token = "AQ_test_token_abcdefghijklmnopqrstuvwxyz";
-    mockResolveAgyOAuthToken.mockReturnValue(token);
+    mockResolveAgyOAuthToken.mockReturnValue(mockToken(token));
 
     const onAuth = vi.fn();
     const onPrompt = vi.fn();
@@ -75,7 +81,7 @@ describe("login — agy OAuth auto-login", () => {
 
   it("falls back to manual API key paste when agy token fails verification", async () => {
     const token = "dead_token";
-    mockResolveAgyOAuthToken.mockReturnValue(token);
+    mockResolveAgyOAuthToken.mockReturnValue(mockToken(token));
 
     const onAuth = vi.fn();
     const callbacks = makeCallbacks({
@@ -94,7 +100,7 @@ describe("login — agy OAuth auto-login", () => {
 
   it("falls back to manual prompt when verify throws (retries exhausted)", async () => {
     const token = "network_error_token";
-    mockResolveAgyOAuthToken.mockReturnValue(token);
+    mockResolveAgyOAuthToken.mockReturnValue(mockToken(token));
 
     const onAuth = vi.fn();
     const callbacks = makeCallbacks({
@@ -205,14 +211,27 @@ describe("refreshToken", () => {
     expect(result.refresh).toBe("AIzaSyD_static_key_abc123");
   });
 
-  it("throws when credentials are expired so pi triggers re-login", async () => {
+  it("throws when expired and refresh === access (static API key, cannot refresh)", async () => {
     const cred: OAuthCredentials = {
       access: "AIzaSyD_expired_key",
       refresh: "AIzaSyD_expired_key",
       expires: Date.now() - 1000,
     };
 
-    await expect(refreshToken(cred)).rejects.toThrow("Gemini credentials have expired");
+    await expect(refreshToken(cred)).rejects.toThrow("cannot be refreshed");
+  });
+
+  it("attempts OAuth refresh when refresh !== access (agy Keychain token)", async () => {
+    // If refresh differs from access, we have a real refresh_token from the Keychain.
+    // The actual HTTP call will fail in unit tests (no network), so this verifies
+    // the code path is reached.
+    const cred: OAuthCredentials = {
+      access: "ya29.expired_access",
+      refresh: "1//real_refresh_token",
+      expires: Date.now() - 1000,
+    };
+
+    await expect(refreshToken(cred)).rejects.toThrow("Gemini token refresh failed");
   });
 });
 

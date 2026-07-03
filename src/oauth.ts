@@ -16,6 +16,7 @@ import { resolveAgyOAuthToken } from "./config-store.js";
 import { sanitizeApiKey, API_KEY_URL, ENV_API_KEY } from "./env.js";
 import { defaultVerifier, type TokenVerifier } from "./oauth-verifier.js";
 import { logger } from "./logger.js";
+import { GEMINI_CLI_CLIENT_ID, GEMINI_CLI_CLIENT_SECRET } from "./oauth-credentials.js";
 
 /** Lifetime for static API key credentials (10 years — effectively permanent). */
 const API_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
@@ -59,12 +60,12 @@ export async function login(
   // 1. Try to reuse agy CLI OAuth credentials
   const agyToken = resolveAgyOAuthToken();
   if (agyToken) {
-    const isVerified = await verifier.verify(agyToken);
+    const isVerified = await verifier.verify(agyToken.access);
     if (isVerified) {
       logger.debug("agy OAuth token verified, auto-login succeeded");
       return {
-        access: agyToken,
-        refresh: agyToken,
+        access: agyToken.access,
+        refresh: agyToken.refresh,
         expires: Date.now() + AGY_OAUTH_LIFETIME_MS,
       };
     }
@@ -96,25 +97,62 @@ export async function login(
 /**
  * Refresh Google Gemini credentials.
  *
- * agy OAuth tokens are short-lived (~1 hour) and cannot be refreshed
- * without re-running `agy`. Static API keys from Google AI Studio
- * effectively never expire (10-year lifetime).
+ * agy OAuth tokens are short-lived (~1 hour) but the agy CLI stores a
+ * refresh_token in the macOS Keychain. When the access token expires,
+ * this function exchanges the refresh_token for a new access token via
+ * Google's OAuth token endpoint.
  *
- * When credentials are expired, this throws so pi triggers `/login`
- * automatically. Returning the expired credentials would cause pi to
- * keep using them and fail silently on every request.
+ * Static API keys from Google AI Studio effectively never expire
+ * (10-year lifetime) — they pass through unchanged.
  *
- * For long-running sessions, use a static API key from
- * aistudio.google.com/apikey instead of agy OAuth tokens.
+ * Throws if refresh fails (e.g. refresh_token revoked, network error).
+ * pi catches the error and triggers `/login` automatically.
  */
 export async function refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
-  if (credentials.expires <= Date.now()) {
+  if (credentials.expires > Date.now()) return credentials;
+
+  // Only attempt OAuth refresh if the refresh token differs from the access
+  // token (static API keys set refresh === access; agy tokens have a real
+  // refresh_token from the Keychain).
+  if (credentials.refresh === credentials.access) {
     throw new Error(
-      "Gemini credentials have expired. Run `pi /login` to re-authenticate. " +
+      "Gemini credentials have expired and cannot be refreshed. " +
+        "Run `pi /login` to re-authenticate. " +
         "Tip: use a static API key from aistudio.google.com/apikey for long-running sessions.",
     );
   }
-  return credentials;
+
+  logger.debug("Refreshing agy OAuth token");
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GEMINI_CLI_CLIENT_ID,
+      client_secret: GEMINI_CLI_CLIENT_SECRET,
+      refresh_token: credentials.refresh,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text().catch(() => "unknown");
+    logger.warn("Token refresh failed", { status: response.status, error });
+    throw new Error("Gemini token refresh failed. Run `pi /login` to re-authenticate.");
+  }
+
+  const data = (await response.json()) as {
+    access_token: string;
+    expires_in: number;
+    refresh_token?: string;
+  };
+
+  return {
+    access: data.access_token,
+    // Google may rotate the refresh_token; use the new one if provided
+    refresh: data.refresh_token ?? credentials.refresh,
+    expires: Date.now() + data.expires_in * 1000 - 5 * 60 * 1000,
+  };
 }
 
 /**

@@ -39,7 +39,7 @@ describe("resolveAgyOAuthToken — keychain → agy files chain", () => {
       keychainOptions: { readKeychainPassword: () => raw },
     });
 
-    expect(result).toBe("ya29.keychain_wins");
+    expect(result?.access).toBe("ya29.keychain_wins");
     expect(readFile).not.toHaveBeenCalled();
     expect(fileExists).not.toHaveBeenCalled();
   });
@@ -62,7 +62,7 @@ describe("resolveAgyOAuthToken — keychain → agy files chain", () => {
       },
     });
 
-    expect(result).toBe("ya29.bare_from_file");
+    expect(result?.access).toBe("ya29.bare_from_file");
   });
 
   it("keychain malformed base64 → falls through to oauth_creds.json", () => {
@@ -83,7 +83,7 @@ describe("resolveAgyOAuthToken — keychain → agy files chain", () => {
       },
     });
 
-    expect(result).toBe("AIza_from_json");
+    expect(result?.access).toBe("AIza_from_json");
   });
 
   it("keychain expired → antigravity expired → oauth_creds fresh", () => {
@@ -116,7 +116,7 @@ describe("resolveAgyOAuthToken — keychain → agy files chain", () => {
       keychainOptions: { readKeychainPassword: () => raw },
     });
 
-    expect(result).toBe("AIza_last_resort");
+    expect(result?.access).toBe("AIza_last_resort");
   });
 
   it("all sources exhausted → returns undefined", () => {

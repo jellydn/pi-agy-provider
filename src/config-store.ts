@@ -156,7 +156,17 @@ const credentialChain = createCredentialChain([
 // ─── Keychain Token Resolution (macOS) ──────────────────────────────────
 
 /** Timeout for keychain command in milliseconds. */
-const KEYCHAIN_TIMEOUT_MS = 3_000;
+const KEYCHAIN_TIMEOUT_MS = 5_000;
+
+/**
+ * Result from a successful Keychain token resolution.
+ * Includes the refresh_token so the caller can refresh the access token
+ * when it expires.
+ */
+export interface KeychainToken {
+  access: string;
+  refresh: string;
+}
 
 /** Options for resolveKeychainToken(). */
 export interface KeychainOptions {
@@ -184,7 +194,11 @@ function defaultReadKeychainPassword(): string {
  *
  * agy CLI v1.0.15+ stores credentials in the Keychain under the service
  * name "gemini", encoded as `go-keyring-base64:<base64-encoded JSON>`.
- * The JSON contains `{token: {access_token, expiry, ...}}`.
+ * The JSON contains `{token: {access_token, refresh_token, expiry, ...}}`.
+ *
+ * Returns both access and refresh tokens. The refresh token is used by
+ * `refreshToken()` to obtain a new access token when the current one
+ * expires.
  *
  * Options are injectable for testability — pass `readKeychainPassword` to
  * mock the keychain read without shelling out to security(1).
@@ -192,7 +206,7 @@ function defaultReadKeychainPassword(): string {
  * Returns undefined on any error — this is best-effort and the caller
  * falls through to file-based resolution.
  */
-export function resolveKeychainToken(options: KeychainOptions = {}): string | undefined {
+export function resolveKeychainToken(options: KeychainOptions = {}): KeychainToken | undefined {
   const platform = options.platform ?? process.platform;
   if (platform !== "darwin") return undefined;
 
@@ -211,12 +225,15 @@ export function resolveKeychainToken(options: KeychainOptions = {}): string | un
     if (!isRecord(token)) return undefined;
 
     const accessToken = stringValue(token.access_token);
+    const refreshToken = stringValue(token.refresh_token);
     if (!accessToken || isExpired(token.expiry)) return undefined;
 
-    return accessToken;
+    return {
+      access: accessToken,
+      refresh: refreshToken ?? accessToken,
+    };
   } catch {
-    // Keychain unavailable, not logged in, or token expired —
-    // silently fall through to file-based resolution.
+    logger.debug("Keychain token resolution failed — falling through to files");
     return undefined;
   }
 }
@@ -227,30 +244,44 @@ export function resolveKeychainToken(options: KeychainOptions = {}): string | un
  * Resolve a Gemini API token from agy CLI credentials.
  *
  * Checks sources in order:
- * 1. macOS Keychain — agy v1.0.15+ stores OAuth tokens here
+ * 1. macOS Keychain — agy v1.0.15+ stores OAuth tokens here (with refresh_token)
  * 2. ~/.gemini/antigravity-cli/antigravity-oauth-token — legacy agy flat file
  * 3. ~/.gemini/oauth_creds.json — Gemini CLI OAuth credentials
  *
+ * Returns both access and refresh tokens when found in the Keychain.
+ * File-based sources only provide access_token (no refresh).
+ *
  * Used by the login flow to automatically reuse existing agy CLI credentials.
  */
-export function resolveAgyOAuthToken(options: AuthKeyOptions = {}): string | undefined {
+export function resolveAgyOAuthToken(
+  options: AuthKeyOptions & { keychainToken?: string | null } = {},
+): KeychainToken | undefined {
   // 1. macOS Keychain (agy v1.0.15+)
   //    keychainToken option: string = use it; null = skip; undefined = call resolveKeychainToken()
   const kcToken =
     "keychainToken" in options
       ? (options.keychainToken ?? undefined)
-      : resolveKeychainToken(options.keychainOptions);
+      : resolveKeychainToken(options.keychainOptions)?.access;
   if (kcToken) {
     logger.debug("Resolved credential from keychain");
-    return kcToken;
+    const fullToken =
+      "keychainToken" in options
+        ? ({ access: options.keychainToken!, refresh: options.keychainToken! } as KeychainToken)
+        : resolveKeychainToken(options.keychainOptions);
+    return fullToken;
   }
 
   // 2. File-based sources (legacy agy versions)
   const home = options.homeDir?.() ?? homedir();
-  return walkAuthPaths(
+  const fileToken = walkAuthPaths(
     { ...options, authPaths: defaultAuthPaths(home) },
     (parsed) => credentialChain.parse(parsed)?.token,
   );
+  if (fileToken) {
+    return { access: fileToken, refresh: fileToken };
+  }
+
+  return undefined;
 }
 
 // ─── API Key Resolution ──────────────────────────────────────────────────
